@@ -5,6 +5,9 @@
 #include <RF24Mesh_config.h>
 #include <RF24Mesh.h>
 #include <RF24_config.h>
+
+#include "Config.h"
+
 #include "Power.h"
 #include "manual_config.h"
 #include "MGAppareilsProt.h"
@@ -14,11 +17,6 @@
 #include "AdafruitSensors.h"
 #include "OneWireHandler.h"
 
-// ******************************* UUID *******************************
-// Generer un nouveau uuid pour chaque appareil
-#define UUID_NOEUD 0xed,0x6f,0x2a,0x6a,0xe9,0x2a,0x11,0xe9,0x95,0xe3,0x0,0x15,0x5d,0x1,0x1f,0x9
-// ******************************* UUID *******************************
-
 #define DEBUG Serial.print
 #define DEBUGLN Serial.println
 
@@ -26,17 +24,6 @@
 // Configurer l'information du senseur
 // ***********************************
 byte senseur = 1; // Valeur 1 par defaut, le master dhcp va reassigner un nodeID permanent sur son resaeu
-
-#define RF24_CE_PIN 7
-#define RF24_CSN_PIN 8
-byte rf24_ce_pin = RF24_CE_PIN;
-byte rf24_csn_pin = RF24_CSN_PIN;
-
-// Nouveau sketch
-#define CANAL_MESH 87
-#define NODE_ID_DEFAULT 1
-#define PIN_LED 6
-// #define CYCLES_SOMMEIL 1
 
 // ***********************************
 
@@ -128,6 +115,7 @@ void loop() {
 
   // Effectuer lectures
   dht.lire();
+  power.lireVoltageBatterie();
 
   // Transmettre information du senseur
   transmettrePaquets();
@@ -138,8 +126,11 @@ void loop() {
 
 void transmettrePaquets() {
 
-  prot7.transmettrePaquet0(0x101, 2);
-  prot7.transmettrePaquetLectureTH(1, &dht);
+  prot7.transmettrePaquet0(0x101, 3);
+
+  byte compteurPaquet = 1;
+  prot7.transmettrePaquetLectureTH(compteurPaquet++, &dht);
+  prot7.transmettrePaquetLecturePower(compteurPaquet++, &power);
   
 }
 

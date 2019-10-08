@@ -79,6 +79,30 @@ bool MGProtocoleV7::transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLec
   return transmettrePaquet();
 }
 
+bool MGProtocoleV7::transmettrePaquetLecturePower(uint16_t noPaquet, FournisseurLecturePower* fournisseur) {
+
+  // Format message Power
+  // noPaquet - 2 bytes
+  // typeMessage - 2 bytes
+  // millivolt - 4 bytes
+  // reservePct - 1 bytes
+  // alerte - 1 bytes
+
+  uint16_t typeMessage = 0x104;
+
+  uint32_t millivolt = fournisseur->millivolt();
+  byte reservePct = fournisseur->reservePct();
+  byte alerte = fournisseur->alerte();
+
+  memcpy(_buffer + 0, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
+  memcpy(_buffer + 4, &millivolt, sizeof(millivolt));
+  memcpy(_buffer + 8, &reservePct, sizeof(reservePct));
+  memcpy(_buffer + 9, &alerte, sizeof(alerte));
+
+  return transmettrePaquet();
+}
+
 //bool MGProtocoleV7::transmettrePaquetLectureMillivolt(uint16_t noPaquet, uint32_t millivolt1, uint32_t millivolt2, uint32_t millivolt3, uint32_t millivolt4) {
 //
 //  // Format message millivol - supporte jusqu'a 4 milliards de volts

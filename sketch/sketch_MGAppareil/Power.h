@@ -4,9 +4,8 @@
 #include <Arduino.h>
 #include <avr/power.h>
 #include <avr/sleep.h>
-
-#define CYCLES_SOMMEIL 1
-#define BATTERY_PIN_VCC 0
+#include "Config.h"
+#include "MGAppareilsProt.h"
 
 // volatile int f_wdt=1;
 
@@ -37,18 +36,23 @@
 
 
 // Methode pour lire le voltage d'alimentation de l'Arduino
-class ArduinoPower
+class ArduinoPower : public FournisseurLecturePower
 {
   public:
     void deepSleep();
-    long readVcc();
-    unsigned int lireVoltageBatterie();
+    void lireVoltageBatterie();
+    uint32_t millivolt();
+    byte reservePct();
+    byte alerte();
 
   private:
     byte _battery_pin = BATTERY_PIN_VCC; // Defaut est VCC
     byte _current_sleep_count = 0; // Cycles actuels
     const byte _sleep_cycles=CYCLES_SOMMEIL; // Nombre de cycles de sommeil (par reveil watchdog)
-    
+    uint32_t _lectureVcc;
+
+    long readVcc();
+
 };
 
 #endif

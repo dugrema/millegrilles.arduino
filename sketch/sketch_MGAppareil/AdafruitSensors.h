@@ -1,5 +1,5 @@
 #ifndef AdafruitSensors_config_h
-#define AdafruitSensors
+#define AdafruitSensors_config_h
 
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP085_U.h>

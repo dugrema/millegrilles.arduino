@@ -27,7 +27,7 @@ long ArduinoPower::readVcc() {
   return result; // Vcc in millivolts
 };
 
-unsigned int ArduinoPower::lireVoltageBatterie() {
+void ArduinoPower::lireVoltageBatterie() {
 
   long voltage = 0;
 
@@ -36,9 +36,7 @@ unsigned int ArduinoPower::lireVoltageBatterie() {
     int sensorValue = analogRead(_battery_pin);
     voltage = map(sensorValue, 0, 1023, 0, voltage);
   }
-  unsigned int mvint = int(voltage);
-  
-  return mvint;
+  _lectureVcc = uint32_t(voltage);
 }
 
 void ArduinoPower::deepSleep() {
@@ -63,4 +61,47 @@ void ArduinoPower::deepSleep() {
   _current_sleep_count = 0; // Reset sleep cycles
   
 }
+
+uint32_t ArduinoPower::millivolt() {
+  return _lectureVcc;
+}
+
+byte ArduinoPower::reservePct() {
+  byte reserve = 100;
+  
+  // Detecter le type d'alimentation
+  if(_lectureVcc > 3350) {
+    // Mode lithium
+    if(_lectureVcc > 4050) {
+      reserve = 100;
+    } else if(_lectureVcc > 3850) {
+      reserve = 80;
+    } else if(_lectureVcc > 3650) {
+      reserve = map(3650, 4050, 15, 80, _lectureVcc);
+    } else {
+      reserve = 15;
+    }
+    
+  } else if (_lectureVcc >= 3200 && _lectureVcc <= 3350) {
+    // Mode alimentation electrique
+    reserve = 100;
+  } else {
+    // Mode AA
+    reserve = map(2723, 3100, 0, 100, _lectureVcc);
+  }
+
+  return reserve;
+}
+
+byte ArduinoPower::alerte() {
+  byte alerte = 0;
+  if(_lectureVcc > 3400 && _lectureVcc < 3500) {
+    alerte = 1;
+  } else if(_lectureVcc < 2750) {
+    alerte = 1;
+  }
+
+  return alerte;
+}
+
 

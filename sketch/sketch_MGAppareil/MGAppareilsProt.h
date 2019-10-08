@@ -3,16 +3,7 @@
 
 #include <Arduino.h>
 #include <RF24Mesh.h>
-
-#define VERSION 0x7
-
-#define MESH_MASTER_ID 0    
-#define NO_TEMP -32768
-#define NO_PRESSURE 0xFF
-#define NO_HUMIDITY 0XFF
-
-// Version du protocole de transmission NRF24
-#define VERSION_PROTOCOLE 7
+#include "Config.h"
 
 class FournisseurLectureTH {
   public:
@@ -22,23 +13,23 @@ class FournisseurLectureTH {
 
 class FournisseurLectureTP {
   public:
-    int temperature();
-    uint16_t pression();
+    virtual int temperature();
+    virtual uint16_t pression();
 };
 
 class FournisseurLectureMillivolt {
   public:
-    uint32_t millivolt1();
-    uint32_t millivolt2();
-    uint32_t millivolt3();
-    uint32_t millivolt4();
+    virtual uint32_t millivolt1();
+    virtual uint32_t millivolt2();
+    virtual uint32_t millivolt3();
+    virtual uint32_t millivolt4();
 };
 
 class FournisseurLecturePower {
   public:
-    uint32_t millivolt();
-    byte reservePct();
-    byte alerte();
+    virtual uint32_t millivolt();
+    virtual byte reservePct();
+    virtual byte alerte();
 };
 
 class MGProtocoleV7 {
@@ -54,6 +45,7 @@ class MGProtocoleV7 {
     // Paquets classe SenseursPassifs
     bool transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLectureTH* fournisseur);
     bool transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLectureTP* fournisseur);
+    bool transmettrePaquetLecturePower(uint16_t noPaquet, FournisseurLecturePower* fournisseur);
 //    bool transmettrePaquetLectureMillivolt(uint16_t noPaquet, uint32_t millivolt1, uint32_t millivolt2, uint32_t millivolt3, uint32_t millivolt4);
 //    bool transmettrePaquetLecturePower(uint16_t noPaquet, uint32_t millivolt, byte reservePct, byte alerte);
 
