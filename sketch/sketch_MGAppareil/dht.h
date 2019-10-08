@@ -12,6 +12,8 @@
 #ifndef dht_h
 #define dht_h
 
+#include "MGAppareilsProt.h"
+
 #if ARDUINO < 100
 #include <WProgram.h>
 #else
@@ -29,8 +31,8 @@
 #define DHTLIB_DHT_WAKEUP       1
 
 #define DHTPIN 4
-#define DHTTYPE 11
-#define DHT_READ_ATTEMPTS 3
+#define DHTTYPE 22
+#define DHT_READ_ATTEMPTS 5
 
 // max timeout is 100 usec.
 // For a 16 Mhz proc 100 usec is 1600 clock cycles
@@ -62,13 +64,16 @@ private:
     int _readSensor(uint8_t pin, uint8_t wakeupDelay);
 };
 
-class MilleGrillesDHT {
+class MilleGrillesDHT : public FournisseurLectureTH {
 
   public:
+    void lire();
+    int temperature();
+    uint16_t humidite();
 
   private:
     //(DHTPIN, DHTTYPE);
-    dht dht_sensor;
+    dht _dht_sensor;
     byte _dht_pin = DHTPIN;
     byte _dht_type = DHTTYPE;
     int _dht_chk=DHTLIB_ERROR_TIMEOUT;

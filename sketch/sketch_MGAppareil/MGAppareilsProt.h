@@ -14,6 +14,33 @@
 // Version du protocole de transmission NRF24
 #define VERSION_PROTOCOLE 7
 
+class FournisseurLectureTH {
+  public:
+    virtual int temperature();
+    virtual uint16_t humidite();
+};
+
+class FournisseurLectureTP {
+  public:
+    int temperature();
+    uint16_t pression();
+};
+
+class FournisseurLectureMillivolt {
+  public:
+    uint32_t millivolt1();
+    uint32_t millivolt2();
+    uint32_t millivolt3();
+    uint32_t millivolt4();
+};
+
+class FournisseurLecturePower {
+  public:
+    uint32_t millivolt();
+    byte reservePct();
+    byte alerte();
+};
+
 class MGProtocoleV7 {
 
   public:
@@ -22,7 +49,13 @@ class MGProtocoleV7 {
       _mesh = mesh;
     };
     
-    void transmettrePaquets();
+    bool transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaquets);
+
+    // Paquets classe SenseursPassifs
+    bool transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLectureTH* fournisseur);
+    bool transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLectureTP* fournisseur);
+//    bool transmettrePaquetLectureMillivolt(uint16_t noPaquet, uint32_t millivolt1, uint32_t millivolt2, uint32_t millivolt3, uint32_t millivolt4);
+//    bool transmettrePaquetLecturePower(uint16_t noPaquet, uint32_t millivolt, byte reservePct, byte alerte);
 
   private:
     const byte* _uuid;
@@ -33,12 +66,9 @@ class MGProtocoleV7 {
     void ecrireUUID(byte* destination);
 
     bool transmettrePaquet();
-    bool transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaquets);
 
-    // Paquets classe SenseursPassifs
-    bool transmettrePaquetLectureTHP(uint16_t noPaquet, int temperature, uint16_t humidite, uint16_t pression);
-    bool transmettrePaquetLectureMillivolt(uint16_t noPaquet, uint32_t millivolt1, uint32_t millivolt2, uint32_t millivolt3, uint32_t millivolt4);
 };
+
 
 #endif
 //

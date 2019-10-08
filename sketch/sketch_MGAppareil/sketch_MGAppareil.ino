@@ -119,22 +119,28 @@ void setup() {
 
 void loop() {
 
+  Serial.println(F("Loop"));
+
   networkMaintenance();
 
   /* Clear le flag du watchdog. */
   f_wdt = 0;
 
   // Effectuer lectures
-  lireHumiditeDansPacket();
-  lireTemperatureDansPacket();
-  lirePressionDansPacket();
-  lireVoltageBatterie();
+  dht.lire();
 
   // Transmettre information du senseur
-  prot7.transmettrePaquets(); // Transmet les packets par nRF24L
+  transmettrePaquets();
 
   // Attendre la prochaine lecture
   attendreProchaineLecture();
+}
+
+void transmettrePaquets() {
+
+  prot7.transmettrePaquet0(0x101, 2);
+  prot7.transmettrePaquetLectureTH(1, &dht);
+  
 }
 
 void networkMaintenance() {

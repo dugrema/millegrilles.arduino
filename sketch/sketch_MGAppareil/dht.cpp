@@ -172,6 +172,76 @@ int dht::_readSensor(uint8_t pin, uint8_t wakeupDelay)
 
     return DHTLIB_OK;
 }
+
+void MilleGrillesDHT::lire() {
+  double humiditefloat, tempfloat;
+
+  byte dht_read_attempt = DHT_READ_ATTEMPTS;
+  boolean dht_read_ok = false;
+  while( !dht_read_ok && dht_read_attempt-- > 0 ) {
+
+    delay(5);
+
+    switch(_dht_type) {
+      case 11:
+      _dht_chk = _dht_sensor.read11(_dht_pin);
+      break;
+      case 22:
+      _dht_chk = _dht_sensor.read22(_dht_pin);
+      break;
+      default:
+      _dht_chk = false;
+      break;
+    }
+
+    dht_read_ok = _dht_chk == DHTLIB_OK;
+    if( !dht_read_ok ) {
+      Serial.print(F("DHT Error:"));
+      Serial.println(DHT_READ_ATTEMPTS - dht_read_attempt - 1);
+      delay(1000);
+    }
+    
+  }
+
+}
+
+int MilleGrillesDHT::temperature() {
+  int temperature = NO_TEMP;
+  float tempfloat;
+  switch (_dht_chk)
+  {
+    case DHTLIB_OK:  
+      tempfloat = _dht_sensor.temperature;
+      temperature = int((tempfloat * 10.0));
+    break;
+    case DHTLIB_ERROR_CHECKSUM: 
+    case DHTLIB_ERROR_TIMEOUT: 
+    default: 
+      temperature = NO_TEMP;
+    break;
+  }
+  return temperature;
+}
+
+uint16_t MilleGrillesDHT::humidite() {
+  uint16_t humidite = NO_HUMIDITY;
+  float humiditefloat;
+  switch (_dht_chk)
+  {
+    case DHTLIB_OK:  
+      humiditefloat = _dht_sensor.humidity;
+      humidite = int((humiditefloat * 10.0)); 
+    break;
+    case DHTLIB_ERROR_CHECKSUM: 
+    case DHTLIB_ERROR_TIMEOUT: 
+    default: 
+      humidite = NO_HUMIDITY;
+    break;
+  }
+    
+  return humidite;
+}
+
 //
 // END OF FILE
 //
