@@ -9,7 +9,6 @@
 #include "Config.h"
 
 #include "Power.h"
-#include "manual_config.h"
 #include "MGAppareilsProt.h"
 
 // Librairies de senseurs
@@ -21,17 +20,12 @@
 #define DEBUGLN Serial.println
 
 // ***********************************
-// Configurer l'information du senseur
-// ***********************************
-byte senseur = 1; // Valeur 1 par defaut, le master dhcp va reassigner un nodeID permanent sur son resaeu
-
-// ***********************************
 
 // Configuration
-manual_config configuration;
+// manual_config configuration;
 
-// Conserver le UUID de l'appareil dans l'espace programme
-const PROGMEM byte uuid[16] = {UUID_NOEUD};
+// UUID, va etre charge a partir de la memoire EEPROM
+byte uuid[16];
 
 // *****************
 // Senseurs
@@ -53,6 +47,10 @@ OneWireHandler oneWireHandler;
 RF24 radio(RF24_CE_PIN,RF24_CSN_PIN);
 RF24Network network(radio);
 RF24Mesh mesh(radio,network);
+
+byte nodeId = NODE_ID_DEFAULT;
+// Toujours verifier nodeId avec DHCP au demarrage
+bool doitVerifierAdresseDhcp = true;
 
 MGProtocoleV7 prot7(uuid, &mesh);
 
@@ -76,14 +74,23 @@ void setup() {
 
   chargerConfiguration();
 
-  // Preparation senseur BMP
-  bmpActif = bmp.begin();
-  if( !bmpActif ) {
-    Serial.println("Senseur BMP180 inactif");
-  }
+  // Preparation senseurs
+  bmp.begin();
 
   // Ouverture de la radio, mesh configuration
-  mesh.setNodeID(NODE_ID_DEFAULT);
+  if(nodeId == 0 || nodeId == NODE_ID_DEFAULT) {
+    // ID 0 est reserve au master
+    // Seeder avec le premier byte du UUID.
+    // Le serveur dhcp va decider si le noeud peut le garder.
+    if(uuid[0] != 0x0) {
+      nodeId = uuid[0];
+    } else {
+      // Le premier byte du UUID est 0, cet ID est reserve au master. 
+      // On reste avec default.
+      nodeId = NODE_ID_DEFAULT;
+    }
+  }
+  mesh.setNodeID(nodeId);
   mesh.begin(CANAL_MESH);
 
   /* Clear the reset flag. */
@@ -108,6 +115,7 @@ void loop() {
 
   Serial.println(F("Loop"));
 
+  // Lecture reseau
   networkMaintenance();
 
   /* Clear le flag du watchdog. */
@@ -115,10 +123,14 @@ void loop() {
 
   // Effectuer lectures
   dht.lire();
+  bmp.lire();
   power.lireVoltageBatterie();
 
   // Transmettre information du senseur
   transmettrePaquets();
+
+  // Lecture reseau
+  networkMaintenance();
 
   // Attendre la prochaine lecture
   attendreProchaineLecture();
@@ -126,187 +138,81 @@ void loop() {
 
 void transmettrePaquets() {
 
-  prot7.transmettrePaquet0(0x101, 3);
+  prot7.transmettrePaquet0(MSG_TYPE_LECTURES_COMBINEES, 4);
 
   byte compteurPaquet = 1;
   prot7.transmettrePaquetLectureTH(compteurPaquet++, &dht);
+  prot7.transmettrePaquetLectureTP(compteurPaquet++, &bmp);
   prot7.transmettrePaquetLecturePower(compteurPaquet++, &power);
   
 }
 
 void networkMaintenance() {
-  mesh.update();
 
-  // Code pour reception de messages
-  /*if(network.available()){
-    RF24NetworkHeader header;
-    uint32_t mills;
-    network.read(header,&mills,sizeof(mills));
-    int _ID = mesh.getNodeID(header.from_node);
-    if( _ID > 0){
-       Serial.println(_ID);
-    }else{
-       Serial.println("Mesh ID Lookup Failed"); 
-    }
-  }*/
-}
-
-// Lit la temperature vers le packet
-int lireTemperatureDansPacket() {
-
-  int temperature = NO_TEMP;
-  boolean tempOK = false;
-//  if( bmpActif ) {
-//    sensors_event_t event;
-//    bmp.getEvent(&event);
-//    float tempfloat;
-//    bmp.getTemperature(&tempfloat);
-//    DEBUG(F("TempBMP:"));
-//    DEBUGLN(tempfloat);
-//    temperature = (int)(tempfloat * 10.0);
-//    tempOK = true;
-//  } else if( dht_type ) {
-//    float tempfloat;
-//    switch (dht_chk)
-//    {
-//      case DHTLIB_OK:  
-//      tempfloat = dht_sensor.temperature;
-//      temperature = int((tempfloat * 10.0));
-//      tempOK = true;
-//      break;
-//      case DHTLIB_ERROR_CHECKSUM: 
-//      Serial.print("DHT Checksum error,\t"); 
-//      break;
-//      case DHTLIB_ERROR_TIMEOUT: 
-//      Serial.print("DHT time out error,\t"); 
-//      break;
-//      default: 
-//      Serial.print("DHT Unknown error,\t"); 
-//      break;
-//    }
-//    
-//  }
-
-  if(tempOK) {
-    DEBUG(F("temperature:"));
-    DEBUGLN(temperature);
-  
-    return temperature;
+  if(doitVerifierAdresseDhcp) {
+    // Le senseur vient d'etre initialise, il faut demander un nouveau nodeId au serveur
+    prot7.transmettreRequeteDhcp();
+    Serial.println(F("Requete DHCP transmise"));
   }
-
-  return 32767;
-}
-
-// Lit la pression vers le packet
-int lirePressionDansPacket() {
-  unsigned int pression = NO_PRESSURE;
-
-//  if( bmpActif ) {
-//    sensors_event_t event;
-//    bmp.getEvent(&event);
-//    if( event.pressure ) {
-//      float pressureFloat;
-//      bmp.getPressure(&pressureFloat);
-//      DEBUG(F("PressBMP:"));
-//      DEBUGLN(pressureFloat);
-//  
-//      pression = int((pressureFloat/10.0));
-//    }
-//  }
-//  
-//  DEBUG("pression:");
-//  DEBUGLN(pression);
   
-  return pression;
-}
+  long timer = millis();
 
-int lireDHT() {
-    int dht_chk=0;
-//  byte dht_read_attempt = DHT_READ_ATTEMPTS;
-//  boolean dht_read_ok = false;
-//  while( !dht_read_ok && dht_read_attempt-- > 0 ) {
-//
-//    delay(5);
-//
-//    switch(dht_type) {
-//      case 11:
-//      dht_chk = dht_sensor.read11(dht_pin);
-//      break;
-//      case 22:
-//      dht_chk = dht_sensor.read22(dht_pin);
-//      break;
-//      default:
-//      dht_chk = false;
-//      break;
-//    }
-//
-//    dht_read_ok = dht_chk == DHTLIB_OK;
-//    if( !dht_read_ok ) {
-//      Serial.print("DHT Error:");
-//      Serial.println(DHT_READ_ATTEMPTS - dht_read_attempt - 1);
-//      delay(2000);
-//    }
-//    
-//  }
+  Serial.println(F("Debut verif maintenance"));
 
-  return dht_chk;
-}
-
-// Lit l'humidite vers le packet
-int lireHumiditeDansPacket() {
-
-  unsigned int humidite = NO_HUMIDITY;
-  boolean humOK = false;
-  
-//  if( dht_type ) {
-//    int temperature = NO_TEMP;
-//    dht_chk = lireDHT();
-//    
-//    double humiditefloat, tempfloat;
-//    switch (dht_chk)
-//    {
-//      case DHTLIB_OK:  
-//      humiditefloat = dht_sensor.humidity;
-//      humidite = int((humiditefloat * 10.0)); 
-//      humOK = true;
-//      break;
-//      case DHTLIB_ERROR_CHECKSUM: 
-//      Serial.print("DHT Checksum error,\t"); 
-//      break;
-//      case DHTLIB_ERROR_TIMEOUT: 
-//      Serial.print("DHT ime out error,\t"); 
-//      break;
-//      default: 
-//      Serial.print("DHT Unknown error,\t"); 
-//      break;
-//    }
+  while(millis() - timer < 1000) {
+    mesh.update();
     
-//    float humiditefloat = dht.readHumidity();
-//    if(!isnan(humiditefloat)) {
-//      humidite = int((humiditefloat * 10.0));  
-//    }
-// } 
+    if(network.available()){
+      RF24NetworkHeader header;
+      network.peek(header);
+      
+      byte dat[64];
+      byte fromNodeId=0;
+      byte nodeIdReserve=0;
 
-  if(humOK) {
-    return humidite;
+      switch(header.type){
+        // Display the incoming millis() values from the sensor nodes
+        case 'd': // Reponse DHCP
+          network.read(header,&dat,sizeof(dat)); 
+          nodeIdReserve = prot7.lireReponseDhcp((byte*)&dat);
+          if(nodeIdReserve > 1) {
+            nodeId = nodeIdReserve;  // Modification du node Id interne
+            mesh.setNodeID(nodeIdReserve);
+            EEPROM.update(ADDRESS_SENSEUR, nodeId);
+            mesh.renewAddress(1000);
+            doitVerifierAdresseDhcp = false;
+            
+            // Changement de nodeId
+            Serial.print(F("Nouveau node id recu de DHCP: "));
+            Serial.println(nodeIdReserve);
+          }
+          break;
+        default: network.read(header,0,0); Serial.println(header.type);break;
+        
+      }
+    } else {
+      if( ! mesh.checkConnection() ) {
+        mesh.renewAddress(500);
+      }
+    }
   }
-
-  return 0xFFFF;
+  Serial.println(F("Fin verif maintenance"));
 }
 
 
 void attendreProchaineLecture() {
+  
   // Power down the radio.  Note that the radio will get powered back up
   // on the next write() call.
+  // mesh.releaseAddress();
   radio.powerDown();
-
-  delay(75); // Transmission serie
 
   digitalWrite(PIN_LED, LOW);
   power.deepSleep();
   digitalWrite(PIN_LED, HIGH);
 
   radio.startListening();
+  mesh.renewAddress(1000);
 
 }
 
@@ -316,18 +222,32 @@ void lireVoltageBatterie() {
 
 void chargerConfiguration() {
 
-  configuration.lire_configuration();
-  // configuration.demander_mode_interactif(2000); // Attendre 2 secondes pour mode interactif
+  // configuration.lire_configuration();
   
-//  EEPROM.get(ADDRESS_ADDRESSSINK, addressSink);
-  EEPROM.get(ADDRESS_SENSEUR, senseur);
-//  EEPROM.get(ADDRESS_RF24_CE_PIN, rf24_ce_pin);
-//  EEPROM.get(ADDRESS_RF24_CSN_PIN, rf24_csn_pin);
-//  EEPROM.get(ADDRESS_DHT_PIN, dht_pin);
-//  EEPROM.get(ADDRESS_DHT_TYPE, dht_type);  
+  EEPROM.get(ADDRESS_SENSEUR, nodeId);
+  EEPROM.get(ADDRESS_UUID, uuid);
   // EEPROM.get(ADDRESS_BATT_PIN, battery_pin);  
 
-  DEBUG(F("NodeID senseur "));
-  DEBUGLN(senseur);
+  Serial.print(F("NodeID senseur "));
+  Serial.println(nodeId);
+  Serial.print(F("UUID senseur "));
+  printArray(uuid, 16);
+}
+
+void printArray(byte* liste, int len) {
+  byte valeur = 0;
+  for(int i=0; i<len; i++){
+    valeur = liste[i];
+    printHex(valeur);
+  }
+
+  Serial.println();  
+}
+
+void printHex(uint8_t num) {
+  char hexCar[2];
+
+  sprintf(hexCar, "%02X", num);
+  Serial.print(hexCar);
 }
 

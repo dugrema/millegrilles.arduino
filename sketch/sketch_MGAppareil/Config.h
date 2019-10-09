@@ -9,7 +9,7 @@
 // ******************************* UUID *******************************
 
 // Nouveau sketch
-#define CANAL_MESH 87
+#define CANAL_MESH 62
 #define NODE_ID_DEFAULT 1
 #define PIN_LED 6
 // #define CYCLES_SOMMEIL 1
@@ -22,13 +22,16 @@
 #define VERSION_PROTOCOLE 7
 
 #define MESH_MASTER_ID 0    
-#define NO_TEMP -32768
-#define NO_PRESSURE 0xFF
-#define NO_HUMIDITY 0XFF
 
 // Power
 #define CYCLES_SOMMEIL 1
 #define BATTERY_PIN_VCC 0
+
+
+// EEPROM
+#define ADDRESS_SENSEUR 9
+#define ADDRESS_UUID 15
+
 
 #endif
 //

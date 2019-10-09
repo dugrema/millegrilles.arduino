@@ -70,7 +70,7 @@ byte ArduinoPower::reservePct() {
   byte reserve = 100;
   
   // Detecter le type d'alimentation
-  if(_lectureVcc > 3350) {
+  if(_lectureVcc > 3400) {
     // Mode lithium
     if(_lectureVcc > 4050) {
       reserve = 100;
@@ -82,7 +82,7 @@ byte ArduinoPower::reservePct() {
       reserve = 15;
     }
     
-  } else if (_lectureVcc >= 3200 && _lectureVcc <= 3350) {
+  } else if (_lectureVcc >= 3200 && _lectureVcc <= 3400) {
     // Mode alimentation electrique
     reserve = 100;
   } else {

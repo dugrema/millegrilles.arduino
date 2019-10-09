@@ -1,9 +1,15 @@
 #include "MGAppareilsProt.h"
 #include <Arduino.h>
 
+byte MGProtocoleV7::lireReponseDhcp(byte* data) {
+  byte nodeId_reserve = data[3];
+  return nodeId_reserve;
+}
+
 // Ecrit UUID a partir du program space vers un buffer
 void MGProtocoleV7::ecrireUUID(byte* destination) {
-  memcpy_P(destination, &_uuid, 16);
+  // memcpy_P(destination, _uuid, 16);  // Utiliser si UUID est dans PROGMEM
+  memcpy(destination, _uuid, 16);
 }
 
 bool MGProtocoleV7::transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaquets) {
@@ -11,70 +17,112 @@ bool MGProtocoleV7::transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaqu
 
     // Format message Paquet0:
     // Version (1 byte)
-    // UUID 16 bytes
     // TYPE MESSAGE 2 bytes
     // Nombre paquets 2 bytes
+    // UUID 16 bytes
     _buffer[0] = VERSION_PROTOCOLE;
-    ecrireUUID(_buffer + 1);
-    memcpy(_buffer + 17, &typeMessage, sizeof(typeMessage));
-    memcpy(_buffer + 20, &nombrePaquets, sizeof(nombrePaquets));
-    _buffer[22] = 0;
-    _buffer[23] = 0;
+    memcpy(_buffer + 1, &typeMessage, sizeof(typeMessage));
+    memcpy(_buffer + 3, &nombrePaquets, sizeof(nombrePaquets));
+    ecrireUUID(_buffer + 5);
+
+    bool transmissionOk = false;
+    for(byte essai=0; !transmissionOk && essai<5; essai++) { 
+      transmissionOk = _mesh->write(_buffer, 'P', sizeof(_buffer), MESH_MASTER_ID);
+      if(!transmissionOk) {
+        if( ! _mesh->checkConnection() ) {
+          _mesh->renewAddress(2000);
+        }
+      }
+    }
+
+    return transmissionOk;
+}
+
+bool MGProtocoleV7::transmettreRequeteDhcp() {
+    uint8_t transmitBuffer[24];
+
+    // Format message Paquet0:
+    // Version (1 byte)
+    // TYPE MESSAGE 2 bytes
+    // Nombre paquets 2 bytes
+    // UUID 16 bytes
+
+    uint16_t typeMessage = MSG_TYPE_REQUETE_DHCP;
     
-    // printArray(transmitBuffer, sizeof(transmitBuffer));
-    bool transmissionOk = _mesh->write(_buffer, 'P', sizeof(_buffer), MESH_MASTER_ID);
-    if(!transmissionOk) {
-      Serial.println("Erreur transmission paquet 0");
-    } else {
-      Serial.println("Paquet 0 ok");
+    _buffer[0] = VERSION_PROTOCOLE;
+    memcpy(_buffer + 1, &typeMessage, sizeof(typeMessage));
+    ecrireUUID(_buffer + 3);
+
+    bool transmissionOk = false;
+    for(byte essai=0; !transmissionOk && essai<15; essai++) {
+      transmissionOk = _mesh->write(_buffer, 'D', sizeof(_buffer), MESH_MASTER_ID);
+      if(!transmissionOk) {
+        if( ! _mesh->checkConnection() ) {
+          _mesh->renewAddress(2000);
+        }
+      }
     }
 
     return transmissionOk;
 }
 
 bool MGProtocoleV7::transmettrePaquet() {
-  bool transmissionOk = _mesh->write(_buffer, 'p', 24, MESH_MASTER_ID);
+  bool transmissionOk = false;
+  for(byte essai=0; !transmissionOk && essai<20; essai++) { 
+    transmissionOk = _mesh->write(_buffer, 'p', 24, MESH_MASTER_ID);
+    if(!transmissionOk) {
+      if( ! _mesh->checkConnection() ) {
+        _mesh->renewAddress(2000);
+      }
+    }
+  }
+  
   return transmissionOk;
 }
 
 bool MGProtocoleV7::transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLectureTH* fournisseur) {
 
   // Format message THP (Temperatures, Humidite, Pression Atmospherique)
-  // noPaquet - 2 bytes
+  // Version - 1 byte
   // typeMessage - 2 bytes
+  // noPaquet - 2 bytes
   // temperature - 2 bytes
   // humidite - 2 bytes
 
-  uint16_t typeMessage = 0x102;
+  uint16_t typeMessage = MSG_TYPE_LECTURE_TH;
 
   int temperature = fournisseur->temperature();
   uint16_t humidite = fournisseur->humidite();
 
-  memcpy(_buffer + 0, &noPaquet, sizeof(noPaquet));
-  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
-  memcpy(_buffer + 4, &temperature, sizeof(temperature));
-  memcpy(_buffer + 6, &humidite, sizeof(humidite));
+  _buffer[0] = VERSION_PROTOCOLE;
+  memcpy(_buffer + 1, &typeMessage, sizeof(typeMessage));
+  memcpy(_buffer + 3, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 5, &temperature, sizeof(temperature));
+  memcpy(_buffer + 7, &humidite, sizeof(humidite));
 
   return transmettrePaquet();
 }
 
 bool MGProtocoleV7::transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLectureTP* fournisseur) {
 
-  // Format message THP (Temperatures, Humidite, Pression Atmospherique)
+  // Format message TP (Temperatures,  Pression Atmospherique)
+  // Version - 1 byte
+  // typeMessage - 2 bytes
   // noPaquet - 2 bytes
   // typeMessage - 2 bytes
   // temperature - 2 bytes
   // pression - 2 bytes
 
-  uint16_t typeMessage = 0x103;
+  uint16_t typeMessage = MSG_TYPE_LECTURE_TP;
 
   int temperature = fournisseur->temperature();
   uint16_t pression = fournisseur->pression();
 
-  memcpy(_buffer + 0, &noPaquet, sizeof(noPaquet));
-  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
-  memcpy(_buffer + 4, &temperature, sizeof(temperature));
-  memcpy(_buffer + 6, &pression, sizeof(pression));
+  _buffer[0] = VERSION_PROTOCOLE;
+  memcpy(_buffer + 1, &typeMessage, sizeof(typeMessage));
+  memcpy(_buffer + 3, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 5, &temperature, sizeof(temperature));
+  memcpy(_buffer + 7, &pression, sizeof(pression));
 
   return transmettrePaquet();
 }
@@ -82,23 +130,26 @@ bool MGProtocoleV7::transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLec
 bool MGProtocoleV7::transmettrePaquetLecturePower(uint16_t noPaquet, FournisseurLecturePower* fournisseur) {
 
   // Format message Power
+  // Version - 1 byte
+  // typeMessage - 2 bytes
   // noPaquet - 2 bytes
   // typeMessage - 2 bytes
   // millivolt - 4 bytes
   // reservePct - 1 bytes
   // alerte - 1 bytes
 
-  uint16_t typeMessage = 0x104;
+  uint16_t typeMessage = MSG_TYPE_LECTURE_POWER;
 
   uint32_t millivolt = fournisseur->millivolt();
   byte reservePct = fournisseur->reservePct();
   byte alerte = fournisseur->alerte();
 
-  memcpy(_buffer + 0, &noPaquet, sizeof(noPaquet));
-  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
-  memcpy(_buffer + 4, &millivolt, sizeof(millivolt));
-  memcpy(_buffer + 8, &reservePct, sizeof(reservePct));
-  memcpy(_buffer + 9, &alerte, sizeof(alerte));
+  _buffer[0] = VERSION_PROTOCOLE;
+  memcpy(_buffer + 1, &typeMessage, sizeof(typeMessage));
+  memcpy(_buffer + 3, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 5, &millivolt, sizeof(millivolt));
+  memcpy(_buffer + 9, &reservePct, sizeof(reservePct));
+  memcpy(_buffer + 10, &alerte, sizeof(alerte));
 
   return transmettrePaquet();
 }

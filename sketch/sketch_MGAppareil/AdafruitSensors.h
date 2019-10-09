@@ -3,15 +3,21 @@
 
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP085_U.h>
+#include "MGAppareilsProt.h"
 
-class MilleGrillesAdafruitSensors {
+class MilleGrillesAdafruitSensors : public FournisseurLectureTP {
 
   public:
-    bool begin();
+    void begin();
+    void lire();
+    int temperature();
+    uint16_t pression();
 
   private:
     Adafruit_BMP085_Unified _bmp = Adafruit_BMP085_Unified(10085);
     boolean _bmpActif = false;
+    int _temperature;
+    uint16_t _pression;
 
 };
 
