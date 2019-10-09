@@ -14,20 +14,19 @@
 //#define BUS_MODE_I2C
 
 // Bus OneWire, utilise pour thermometres DS18B20/DS18S20.
-#define BUS_MODE_ONEWIRE
+// #define BUS_MODE_ONEWIRE
 
 // Senseur DHT
-//#define DHTPIN 4
-//#define DHTTYPE 22
+#define DHTPIN 4
+#define DHTTYPE 22
 
 // Nouveau sketch
 #define CANAL_MESH 62
 #define NODE_ID_DEFAULT 1
 #define PIN_LED 6
 #define ONE_WIRE_PIN 10
-// #define CYCLES_SOMMEIL 1
 
-
+// Configuration pour radio RF24
 #define RF24_CE_PIN 7
 #define RF24_CSN_PIN 8
 
@@ -37,7 +36,7 @@
 #define MESH_MASTER_ID 0    
 
 // Power
-#define CYCLES_SOMMEIL 1
+#define CYCLES_SOMMEIL 5
 #define BATTERY_PIN_VCC 0
 
 

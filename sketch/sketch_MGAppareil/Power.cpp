@@ -1,6 +1,10 @@
 #include "Power.h"
 #include <Arduino.h>
 
+bool ArduinoPower::isAlimentationSecteur() {
+  return reservePct() == 100;
+}
+
 long ArduinoPower::readVcc() {
   // Read 1.1V reference against AVcc
   // set the reference to Vcc and the measurement to the internal 1.1V reference
@@ -85,9 +89,11 @@ byte ArduinoPower::reservePct() {
   } else if (_lectureVcc >= 3200 && _lectureVcc <= 3400) {
     // Mode alimentation electrique
     reserve = 100;
-  } else {
+  } else if (_lectureVcc >= 2723) {
     // Mode AA
     reserve = map(2723, 3100, 0, 100, _lectureVcc);
+  } else {
+    reserve = 0;
   }
 
   return reserve;

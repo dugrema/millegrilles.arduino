@@ -15,24 +15,26 @@ byte OneWireHandler::nombreSenseurs() {
 
 void OneWireHandler::lire() {
   _present = 0;
-  
-  Serial.println(F("Recherche sur bus OneWire"));
+
+//  Serial.println(F("Recherche sur bus OneWire"));
 
   _ds.reset_search();
   if ( !_ds.search(_addr)) {
-      Serial.print("No more addresses.\n");
-      _ds.reset_search();
-      return;
+//    Serial.print("No more addresses.\n");
+    _ds.reset_search();
+    memset(_data, 0xFF, sizeof(_data));  // Reset data pour eviter de transmettre vieille valeur
+    return;
   }
 
-  Serial.print("R=");
-  for( byte i = 0; i < 8; i++) {
-    Serial.print(_addr[i], HEX);
-    Serial.print(" ");
-  }
+//  Serial.print("R=");
+//  for( byte i = 0; i < 8; i++) {
+//    Serial.print(_addr[i], HEX);
+//    Serial.print(" ");
+//  }
 
   if ( OneWire::crc8( _addr, 7) != _addr[7]) {
-    Serial.print("CRC is not valid!\n");
+//    Serial.print("CRC is not valid!\n");
+    memset(_data, 0xFF, sizeof(_data));  // Reset data pour eviter de transmettre vieille valeur
     return;
   }
 
@@ -61,48 +63,48 @@ bool OneWireHandler::lireData(int attente) {
   _ds.select(_addr);    
   _ds.write(0xBE);         // Read Scratchpad
 
-  Serial.print("P=");
-  Serial.print(present,HEX);
-  Serial.print(" ");
+//  Serial.print("P=");
+//  Serial.print(present,HEX);
+//  Serial.print(" ");
   for ( byte i = 0; i < 9; i++) {           // we need 9 bytes
     _data[i] = _ds.read();
-    Serial.print(_data[i], HEX);
-    Serial.print(" ");
+//    Serial.print(_data[i], HEX);
+//    Serial.print(" ");
   }
-  Serial.print(" CRC=");
-  Serial.print( OneWire::crc8( _data, 8), HEX);
-  Serial.println();
+//  Serial.print(" CRC=");
+//  Serial.print( OneWire::crc8( _data, 8), HEX);
+//  Serial.println();
 }
 
-int OneWireHandler::lire_temperature() {
-  int temperature = NO_TEMP;
-  int HighByte, LowByte, TReading, SignBit, Tc_100, Whole, Fract;
-
-  LowByte = _data[0];
-  HighByte = _data[1];
-  TReading = (HighByte << 8) + LowByte;
-  SignBit = TReading & 0x8000;  // test most sig bit
-  if (SignBit) // negative
-  {
-    TReading = (TReading ^ 0xffff) + 1; // 2's comp
-  }
-  Tc_100 = (6 * TReading) + TReading / 4;    // multiply by (100 * 0.0625) or 6.25
-
-  Whole = Tc_100 / 100;  // separate off the whole and fractional portions
-  Fract = Tc_100 % 100;
-
-  if (SignBit) // If its negative
-  {
-     Serial.print("-");
-  }
-  Serial.print(Whole);
-  Serial.print(".");
-  if (Fract < 10)
-  {
-     Serial.print("0");
-  }
-  Serial.println(Fract);
-
-  return temperature;
-}
+//int OneWireHandler::lire_temperature() {
+//  int temperature = NO_TEMP;
+//  int HighByte, LowByte, TReading, SignBit, Tc_100, Whole, Fract;
+//
+//  LowByte = _data[0];
+//  HighByte = _data[1];
+//  TReading = (HighByte << 8) + LowByte;
+//  SignBit = TReading & 0x8000;  // test most sig bit
+//  if (SignBit) // negative
+//  {
+//    TReading = (TReading ^ 0xffff) + 1; // 2's comp
+//  }
+//  Tc_100 = (6 * TReading) + TReading / 4;    // multiply by (100 * 0.0625) or 6.25
+//
+//  Whole = Tc_100 / 100;  // separate off the whole and fractional portions
+//  Fract = Tc_100 % 100;
+//
+//  if (SignBit) // If its negative
+//  {
+//     Serial.print("-");
+//  }
+//  Serial.print(Whole);
+//  Serial.print(".");
+//  if (Fract < 10)
+//  {
+//     Serial.print("0");
+//  }
+//  Serial.println(Fract);
+//
+//  return temperature;
+//}
 

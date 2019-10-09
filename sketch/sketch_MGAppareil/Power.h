@@ -44,6 +44,7 @@ class ArduinoPower : public FournisseurLecturePower
     uint32_t millivolt();
     byte reservePct();
     byte alerte();
+    bool isAlimentationSecteur();  // True si l'appareil n'est pas sur batterie
 
   private:
     byte _battery_pin = BATTERY_PIN_VCC; // Defaut est VCC

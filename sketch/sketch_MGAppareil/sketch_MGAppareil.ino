@@ -150,8 +150,10 @@ void loop() {
   // Lecture reseau
   networkMaintenance();
 
-  // Attendre la prochaine lecture
-  attendreProchaineLecture();
+  if(!power.isAlimentationSecteur()) {
+    // Attendre la prochaine lecture
+    attendreProchaineLecture();
+  }
 }
 
 void transmettrePaquets() {
@@ -193,6 +195,10 @@ void transmettrePaquets() {
 
 void networkMaintenance() {
 
+  byte pinOutput = 200;
+  byte pintThrottle = 0;
+  bool directionPin = false;
+
   if(doitVerifierAdresseDhcp) {
     // Le senseur vient d'etre initialise, il faut demander un nouveau nodeId au serveur
     prot7.transmettreRequeteDhcp();
@@ -200,10 +206,30 @@ void networkMaintenance() {
   }
   
   long timer = millis();
+  uint16_t attente = 1000;
+  if(power.isAlimentationSecteur()) {
+    // Mode alimentation secteur - cet appareil devient un node fiable pour le mesh.
+    // On reste en ecoute durant l'equivalent du mode sleep.
+    attente = 8000 * CYCLES_SOMMEIL;
+    Serial.print("Secteur, on attend sur reseau: ");
+    Serial.println(attente);
+  }
 
-  Serial.println(F("Debut verif maintenance"));
+  Serial.print(F("Reserve batterie: "));
+  Serial.println(power.reservePct());
+  Serial.print(F("Sur secteur: "));
+  Serial.println(power.isAlimentationSecteur());
 
-  while(millis() - timer < 1000) {
+  while(millis() - timer < attente) {
+    if(pintThrottle++ == 4) {
+      pintThrottle = 0;
+      if(directionPin) pinOutput++;
+      else pinOutput--;
+      if(pinOutput == 20) directionPin = true;
+      if(pinOutput == 180) directionPin = false;
+    }
+    
+    analogWrite(PIN_LED, pinOutput);
     mesh.update();
     
     if(network.available()){
@@ -240,11 +266,15 @@ void networkMaintenance() {
       }
     }
   }
+
+  digitalWrite(PIN_LED, HIGH);
   Serial.println(F("Fin verif maintenance"));
 }
 
 
 void attendreProchaineLecture() {
+
+  Serial.println("Sleep");
   
   // Power down the radio.  Note that the radio will get powered back up
   // on the next write() call.
