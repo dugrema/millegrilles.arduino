@@ -4,15 +4,30 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <OneWire.h>
+#include "MGAppareilsProt.h"
 
-#define ONE_WIRE_PIN 10
-
-class OneWireHandler
+class OneWireHandler: public FournisseurLectureOneWire
 {
   public:
+    OneWireHandler(byte pin) {
+      _ds = OneWire(pin);
+    }
+    void lire();
+    bool hasNext();
+    byte nombreSenseurs();
+    
+    byte* adresse(); // byte[8]
+    byte* data();  // byte[12]
+    
 
   private:
-    OneWire ds = OneWire(ONE_WIRE_PIN);
+    OneWire _ds;
+    byte _present;
+    byte _data[12];
+    byte _addr[8];
+
+    bool lireData(int attente);
+    int lire_temperature();
     
 };
 

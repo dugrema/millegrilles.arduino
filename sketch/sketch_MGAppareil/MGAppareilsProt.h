@@ -9,6 +9,8 @@
 #define NO_PRESSURE 0xFF
 #define NO_HUMIDITY 0XFF
 
+#define PAYLOAD_TAILLE_SIMPLE 24
+#define PAYLOAD_TAILLE_DOUBLE 48
 
 #define MSG_TYPE_REQUETE_DHCP 0x1
 #define MSG_TYPE_REPONSE_DHCP 0x2
@@ -17,6 +19,7 @@
 #define MSG_TYPE_LECTURE_TH 0x102
 #define MSG_TYPE_LECTURE_TP 0x103
 #define MSG_TYPE_LECTURE_POWER 0x104
+#define MSG_TYPE_LECTURE_ONEWIRE 0x105
 
 class FournisseurLectureTH {
   public:
@@ -45,6 +48,12 @@ class FournisseurLecturePower {
     virtual byte alerte();
 };
 
+class FournisseurLectureOneWire {
+  public:
+    virtual byte* adresse(); // byte[8]
+    virtual byte* data();  // byte[12]
+};
+
 class MGProtocoleV7 {
 
   public:
@@ -62,6 +71,7 @@ class MGProtocoleV7 {
     bool transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLectureTH* fournisseur);
     bool transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLectureTP* fournisseur);
     bool transmettrePaquetLecturePower(uint16_t noPaquet, FournisseurLecturePower* fournisseur);
+    bool transmettrePaquetLectureOneWire(uint16_t noPaquet, FournisseurLectureOneWire* fournisseur);
     
 //    bool transmettrePaquetLectureMillivolt(uint16_t noPaquet, uint32_t millivolt1, uint32_t millivolt2, uint32_t millivolt3, uint32_t millivolt4);
 //    bool transmettrePaquetLecturePower(uint16_t noPaquet, uint32_t millivolt, byte reservePct, byte alerte);
@@ -70,11 +80,13 @@ class MGProtocoleV7 {
     const byte* _uuid;
     RF24Mesh* _mesh;
     
-    byte _buffer[24];
+    byte _buffer[48]; // Supporte 2 * 24 bytes (taille du plus grand payload)
 
     void ecrireUUID(byte* destination);
 
-    bool transmettrePaquet();
+    // Transmet un paquet; il faut indiquer la taille du payload 
+    // (PAYLOAD_TAILLE_SIMPLE ou PAYLOAD_TAILLE_DOUBLE)
+    bool transmettrePaquet(byte taillePayload);
 
 };
 

@@ -27,7 +27,7 @@ bool MGProtocoleV7::transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaqu
 
     bool transmissionOk = false;
     for(byte essai=0; !transmissionOk && essai<5; essai++) { 
-      transmissionOk = _mesh->write(_buffer, 'P', sizeof(_buffer), MESH_MASTER_ID);
+      transmissionOk = _mesh->write(_buffer, 'P', PAYLOAD_TAILLE_SIMPLE, MESH_MASTER_ID);
       if(!transmissionOk) {
         if( ! _mesh->checkConnection() ) {
           _mesh->renewAddress(2000);
@@ -55,7 +55,7 @@ bool MGProtocoleV7::transmettreRequeteDhcp() {
 
     bool transmissionOk = false;
     for(byte essai=0; !transmissionOk && essai<15; essai++) {
-      transmissionOk = _mesh->write(_buffer, 'D', sizeof(_buffer), MESH_MASTER_ID);
+      transmissionOk = _mesh->write(_buffer, 'D', PAYLOAD_TAILLE_SIMPLE, MESH_MASTER_ID);
       if(!transmissionOk) {
         if( ! _mesh->checkConnection() ) {
           _mesh->renewAddress(2000);
@@ -66,10 +66,14 @@ bool MGProtocoleV7::transmettreRequeteDhcp() {
     return transmissionOk;
 }
 
-bool MGProtocoleV7::transmettrePaquet() {
+bool MGProtocoleV7::transmettrePaquet(byte taillePayload) {
   bool transmissionOk = false;
+  
+  char typePaquet = 'p';
+  if(taillePayload == PAYLOAD_TAILLE_DOUBLE) typePaquet = '2';
+  
   for(byte essai=0; !transmissionOk && essai<20; essai++) { 
-    transmissionOk = _mesh->write(_buffer, 'p', 24, MESH_MASTER_ID);
+    transmissionOk = _mesh->write(_buffer, typePaquet, taillePayload, MESH_MASTER_ID);
     if(!transmissionOk) {
       if( ! _mesh->checkConnection() ) {
         _mesh->renewAddress(2000);
@@ -100,7 +104,7 @@ bool MGProtocoleV7::transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLec
   memcpy(_buffer + 5, &temperature, sizeof(temperature));
   memcpy(_buffer + 7, &humidite, sizeof(humidite));
 
-  return transmettrePaquet();
+  return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
 }
 
 bool MGProtocoleV7::transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLectureTP* fournisseur) {
@@ -124,7 +128,7 @@ bool MGProtocoleV7::transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLec
   memcpy(_buffer + 5, &temperature, sizeof(temperature));
   memcpy(_buffer + 7, &pression, sizeof(pression));
 
-  return transmettrePaquet();
+  return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
 }
 
 bool MGProtocoleV7::transmettrePaquetLecturePower(uint16_t noPaquet, FournisseurLecturePower* fournisseur) {
@@ -133,7 +137,6 @@ bool MGProtocoleV7::transmettrePaquetLecturePower(uint16_t noPaquet, Fournisseur
   // Version - 1 byte
   // typeMessage - 2 bytes
   // noPaquet - 2 bytes
-  // typeMessage - 2 bytes
   // millivolt - 4 bytes
   // reservePct - 1 bytes
   // alerte - 1 bytes
@@ -151,7 +154,26 @@ bool MGProtocoleV7::transmettrePaquetLecturePower(uint16_t noPaquet, Fournisseur
   memcpy(_buffer + 9, &reservePct, sizeof(reservePct));
   memcpy(_buffer + 10, &alerte, sizeof(alerte));
 
-  return transmettrePaquet();
+  return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
+}
+
+bool MGProtocoleV7::transmettrePaquetLectureOneWire(uint16_t noPaquet, FournisseurLectureOneWire* fournisseur) {
+  // Format message Power
+  // Version - 1 byte
+  // typeMessage - 2 bytes
+  // noPaquet - 2 bytes
+  // adresse - 8 bytes
+  // data - 12 bytes
+
+  uint16_t typeMessage = MSG_TYPE_LECTURE_ONEWIRE;
+
+  _buffer[0] = VERSION_PROTOCOLE;
+  memcpy(_buffer + 1, &typeMessage, sizeof(typeMessage));
+  memcpy(_buffer + 3, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 5, fournisseur->adresse(), 8);
+  memcpy(_buffer + 13, fournisseur->data(), 12);
+
+  return transmettrePaquet(PAYLOAD_TAILLE_DOUBLE);
 }
 
 //bool MGProtocoleV7::transmettrePaquetLectureMillivolt(uint16_t noPaquet, uint32_t millivolt1, uint32_t millivolt2, uint32_t millivolt3, uint32_t millivolt4) {

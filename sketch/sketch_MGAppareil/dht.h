@@ -12,6 +12,7 @@
 #ifndef dht_h
 #define dht_h
 
+#include "Config.h"
 #include "MGAppareilsProt.h"
 
 #if ARDUINO < 100
@@ -30,8 +31,6 @@
 #define DHTLIB_DHT11_WAKEUP     18
 #define DHTLIB_DHT_WAKEUP       1
 
-#define DHTPIN 4
-#define DHTTYPE 22
 #define DHT_READ_ATTEMPTS 5
 
 // max timeout is 100 usec.
@@ -67,6 +66,10 @@ private:
 class MilleGrillesDHT : public FournisseurLectureTH {
 
   public:
+    MilleGrillesDHT(byte pin, byte type) {
+      _dht_pin = pin;
+      _dht_type = type;
+    }
     void lire();
     int temperature();
     uint16_t humidite();
@@ -74,8 +77,8 @@ class MilleGrillesDHT : public FournisseurLectureTH {
   private:
     //(DHTPIN, DHTTYPE);
     dht _dht_sensor;
-    byte _dht_pin = DHTPIN;
-    byte _dht_type = DHTTYPE;
+    byte _dht_pin;
+    byte _dht_type;
     int _dht_chk=DHTLIB_ERROR_TIMEOUT;
   
 };

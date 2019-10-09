@@ -8,10 +8,23 @@
 #define UUID_NOEUD 0xed,0x6f,0x2a,0x6a,0xe9,0x2a,0x11,0xe9,0x95,0xe3,0x0,0x15,0x5d,0x1,0x1f,0x9
 // ******************************* UUID *******************************
 
+// Selectionner mode bus, soit OneWire soit I2C. Les deux sont mutuellement exclusifs
+
+// Bus TWI / I2C
+//#define BUS_MODE_I2C
+
+// Bus OneWire, utilise pour thermometres DS18B20/DS18S20.
+#define BUS_MODE_ONEWIRE
+
+// Senseur DHT
+//#define DHTPIN 4
+//#define DHTTYPE 22
+
 // Nouveau sketch
 #define CANAL_MESH 62
 #define NODE_ID_DEFAULT 1
 #define PIN_LED 6
+#define ONE_WIRE_PIN 10
 // #define CYCLES_SOMMEIL 1
 
 

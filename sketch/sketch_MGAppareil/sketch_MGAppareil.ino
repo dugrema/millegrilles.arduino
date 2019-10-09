@@ -11,11 +11,6 @@
 #include "Power.h"
 #include "MGAppareilsProt.h"
 
-// Librairies de senseurs
-#include "dht.h"
-#include "AdafruitSensors.h"
-#include "OneWireHandler.h"
-
 #define DEBUG Serial.print
 #define DEBUGLN Serial.println
 
@@ -32,14 +27,26 @@ byte uuid[16];
 // *****************
 
 // DHT
-MilleGrillesDHT dht;
-boolean bmpActif = false;
+#if defined(DHTPIN) && defined(DHTTYPE)
+  #include "dht.h"
+  MilleGrillesDHT dht(DHTPIN, DHTTYPE);
+#endif
 
-// Adafruit BMP
-MilleGrillesAdafruitSensors bmp;
+// Determiner le type de mode d'utilisation du bus de l'appareil.
+// Supporte soit I2C, soit OneWire.
+#ifdef BUS_MODE_ONEWIRE
 
-// OneWire
-OneWireHandler oneWireHandler;
+  // OneWire
+  #include "OneWireHandler.h"
+  OneWireHandler oneWireHandler(A4);  // Pin A4 - meme que I2C data
+
+#elif BUS_MODE_I2C
+
+  // Adafruit BMP
+  #include "AdafruitSensors.h"
+  MilleGrillesAdafruitSensors bmp;
+
+#endif
 
 // *****************
 
@@ -75,7 +82,9 @@ void setup() {
   chargerConfiguration();
 
   // Preparation senseurs
-  bmp.begin();
+  #if BUS_MODE_I2C
+    bmp.begin();
+  #endif
 
   // Ouverture de la radio, mesh configuration
   if(nodeId == 0 || nodeId == NODE_ID_DEFAULT) {
@@ -122,8 +131,17 @@ void loop() {
   f_wdt = 0;
 
   // Effectuer lectures
-  dht.lire();
-  bmp.lire();
+  #if defined(DHTPIN) && defined(DHTTYPE)
+    dht.lire();
+  #endif
+  
+  #ifdef BUS_MODE_ONEWIRE
+    // Fait la recherche initiale sur le bus
+    oneWireHandler.lire();
+  #elif BUS_MODE_I2C
+    bmp.lire();
+  #endif
+  
   power.lireVoltageBatterie();
 
   // Transmettre information du senseur
@@ -138,11 +156,37 @@ void loop() {
 
 void transmettrePaquets() {
 
-  prot7.transmettrePaquet0(MSG_TYPE_LECTURES_COMBINEES, 4);
+  byte nombrePaquets = 2; // Init a 2, pour paquet 0 et paquet power.
+  #ifdef BUS_MODE_ONEWIRE
+    // OneWire peut avoir un nombre variable de senseurs
+    nombrePaquets += oneWireHandler.nombreSenseurs();
+  #endif
 
-  byte compteurPaquet = 1;
-  prot7.transmettrePaquetLectureTH(compteurPaquet++, &dht);
+  #ifdef BUS_MODE_I2C
+    nombrePaquets++;
+  #endif
+
+  #if defined(DHTPIN) && defined(DHTTYPE)
+    nombrePaquets++;
+  #endif
+
+  // Debut de la transmission
+  prot7.transmettrePaquet0(MSG_TYPE_LECTURES_COMBINEES, nombrePaquets);
+
+  byte compteurPaquet = 1;  // Fourni le numero du paquet courant
+  #ifdef BUS_MODE_ONEWIRE
+  //while()...
+  prot7.transmettrePaquetLectureOneWire(compteurPaquet++, &oneWireHandler);
+  #endif
+
+  #if defined(DHTPIN) && defined(DHTTYPE)
+    prot7.transmettrePaquetLectureTH(compteurPaquet++, &dht);
+  #endif 
+  
+  #ifdef BUS_MODE_I2C
   prot7.transmettrePaquetLectureTP(compteurPaquet++, &bmp);
+  #endif
+  
   prot7.transmettrePaquetLecturePower(compteurPaquet++, &power);
   
 }
