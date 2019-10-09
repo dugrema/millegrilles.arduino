@@ -17,7 +17,6 @@
 // ***********************************
 
 // Configuration
-// manual_config configuration;
 
 // UUID, va etre charge a partir de la memoire EEPROM
 byte uuid[16];
@@ -122,8 +121,6 @@ void setup() {
 
 void loop() {
 
-  Serial.println(F("Loop"));
-
   // Lecture reseau
   networkMaintenance();
 
@@ -211,14 +208,14 @@ void networkMaintenance() {
     // Mode alimentation secteur - cet appareil devient un node fiable pour le mesh.
     // On reste en ecoute durant l'equivalent du mode sleep.
     attente = 8000 * CYCLES_SOMMEIL;
-    Serial.print("Secteur, on attend sur reseau: ");
-    Serial.println(attente);
+//    Serial.print("Secteur, on attend sur reseau: ");
+//    Serial.println(attente);
   }
 
-  Serial.print(F("Reserve batterie: "));
-  Serial.println(power.reservePct());
-  Serial.print(F("Sur secteur: "));
-  Serial.println(power.isAlimentationSecteur());
+//  Serial.print(F("Reserve batterie: "));
+//  Serial.println(power.reservePct());
+//  Serial.print(F("Sur secteur: "));
+//  Serial.println(power.isAlimentationSecteur());
 
   while(millis() - timer < attente) {
     if(pintThrottle++ == 4) {
@@ -268,7 +265,7 @@ void networkMaintenance() {
   }
 
   digitalWrite(PIN_LED, HIGH);
-  Serial.println(F("Fin verif maintenance"));
+//   Serial.println(F("Fin verif maintenance"));
 }
 
 
@@ -288,10 +285,6 @@ void attendreProchaineLecture() {
   radio.startListening();
   mesh.renewAddress(1000);
 
-}
-
-void lireVoltageBatterie() {
-  
 }
 
 void chargerConfiguration() {

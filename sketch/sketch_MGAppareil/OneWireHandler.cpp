@@ -57,7 +57,7 @@ bool OneWireHandler::lireData(int attente) {
   // _ds.write(0x44,1);      // start conversion, with parasite power on at the end
 
   delay(attente);     // maybe 750ms is enough, maybe not
-  // we might do a ds.depower() here, but the reset will take care of it.
+  _ds.depower();       // we might do a ds.depower() here, but the reset will take care of it.
 
   byte present = _ds.reset();
   _ds.select(_addr);    
