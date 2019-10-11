@@ -2,6 +2,9 @@
 
 void MilleGrillesAdafruitSensors::begin() {
    _bmpActif = _bmp.begin();
+   if(!_bmpActif) {
+    Serial.println(F("BMP: Erreur, desactive."));
+   }
 }
 
 void MilleGrillesAdafruitSensors::lire() {

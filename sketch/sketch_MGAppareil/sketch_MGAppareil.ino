@@ -39,7 +39,7 @@ byte uuid[16];
   #include "OneWireHandler.h"
   OneWireHandler oneWireHandler(A4);  // Pin A4 - meme que I2C data
 
-#elif BUS_MODE_I2C
+#elif defined(BUS_MODE_I2C)
 
   // Adafruit BMP
   #include "AdafruitSensors.h"
@@ -81,7 +81,7 @@ void setup() {
   chargerConfiguration();
 
   // Preparation senseurs
-  #if BUS_MODE_I2C
+  #ifdef BUS_MODE_I2C
     bmp.begin();
   #endif
 
@@ -135,7 +135,7 @@ void loop() {
   #ifdef BUS_MODE_ONEWIRE
     // Fait la recherche initiale sur le bus
     oneWireHandler.lire();
-  #elif BUS_MODE_I2C
+  #elif defined(BUS_MODE_I2C)
     bmp.lire();
   #endif
   
