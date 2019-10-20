@@ -197,3 +197,4 @@ bool MGProtocoleV7::transmettrePaquetLectureOneWire(uint16_t noPaquet, Fournisse
 //
 //  return transmettrePaquet();
 //}
+

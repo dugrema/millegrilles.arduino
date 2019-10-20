@@ -1,18 +1,18 @@
 //#include <printf.h>
-
 #include <EEPROM.h>
-
-#include <RF24Mesh_config.h>
-#include <RF24Mesh.h>
-#include <RF24_config.h>
-
 #include "Config.h"
-
 #include "Power.h"
 #include "MGAppareilsProt.h"
 
-#define DEBUG Serial.print
-#define DEBUGLN Serial.println
+#include "RF24.h"
+#include "RF24Network.h"
+#include "RF24Mesh.h"
+#include <SPI.h>
+
+//#include <RF24_config.h>
+//#include <RF24Mesh_config.h>
+//#include <RF24Mesh.h>
+
 
 // ***********************************
 
@@ -98,8 +98,12 @@ void setup() {
       nodeId = NODE_ID_DEFAULT;
     }
   }
+
+  Serial.print(F("Connexion mesh avec nodeId "));
   mesh.setNodeID(nodeId);
+  Serial.println(nodeId);
   mesh.begin(CANAL_MESH);
+  Serial.println(F("Connexion mesh complete"));
 
   /* Clear the reset flag. */
   MCUSR &= ~(1<<WDRF);
@@ -112,7 +116,7 @@ void setup() {
   /* Enable the WD interrupt (note no reset). */
   WDTCSR |= _BV(WDIE);
 
-  DEBUGLN(F("Pret"));
+  Serial.println(F("Pret"));
 
   digitalWrite(PIN_LED, LOW);
   delay(200);
@@ -317,4 +321,3 @@ void printHex(uint8_t num) {
   sprintf(hexCar, "%02X", num);
   Serial.print(hexCar);
 }
-

@@ -60,3 +60,4 @@ class ArduinoPower : public FournisseurLecturePower
 //
 // END OF FILE
 //
+
