@@ -4,14 +4,13 @@
 #include "Power.h"
 #include "MGAppareilsProt.h"
 
-#include "RF24.h"
-#include "RF24Network.h"
-#include "RF24Mesh.h"
 #include <SPI.h>
+#include <RF24.h>
+#include <RF24Network.h>
+#include <RF24Mesh_config.h>
+#include <RF24Mesh.h>
 
-//#include <RF24_config.h>
-//#include <RF24Mesh_config.h>
-//#include <RF24Mesh.h>
+#include <printf.h>
 
 
 // ***********************************
@@ -76,7 +75,8 @@ void setup() {
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, HIGH);
   
-  Serial.begin(9600);
+  Serial.begin(115200);
+  printf_begin();
 
   chargerConfiguration();
 
@@ -102,8 +102,13 @@ void setup() {
   Serial.print(F("Connexion mesh avec nodeId "));
   mesh.setNodeID(nodeId);
   Serial.println(nodeId);
-  mesh.begin(CANAL_MESH);
+  mesh.begin(CANAL_MESH, RF24_250KBPS, MESH_RENEW_TIMEOUT);
+  radio.enableDynamicPayloads();
+  radio.setAutoAck(true);
   Serial.println(F("Connexion mesh complete"));
+
+  radio.setPALevel(RF24_PA_HIGH);
+  radio.printDetails();
 
   /* Clear the reset flag. */
   MCUSR &= ~(1<<WDRF);
@@ -174,24 +179,28 @@ void transmettrePaquets() {
   #endif
 
   // Debut de la transmission
-  prot7.transmettrePaquet0(MSG_TYPE_LECTURES_COMBINEES, nombrePaquets);
+  bool paquetOk = false;
+  for(byte essai=0; essai<10 && !paquetOk; essai++) {
+    paquetOk = prot7.transmettrePaquet0(MSG_TYPE_LECTURES_COMBINEES, nombrePaquets);
+  }
 
-  byte compteurPaquet = 1;  // Fourni le numero du paquet courant
-  #ifdef BUS_MODE_ONEWIRE
-  //while()...
-  prot7.transmettrePaquetLectureOneWire(compteurPaquet++, &oneWireHandler);
-  #endif
-
-  #if defined(DHTPIN) && defined(DHTTYPE)
-    prot7.transmettrePaquetLectureTH(compteurPaquet++, &dht);
-  #endif 
+  if(paquetOk) {
+    byte compteurPaquet = 1;  // Fourni le numero du paquet courant
+    #ifdef BUS_MODE_ONEWIRE
+    //while()...
+    prot7.transmettrePaquetLectureOneWire(compteurPaquet++, &oneWireHandler);
+    #endif
   
-  #ifdef BUS_MODE_I2C
-  prot7.transmettrePaquetLectureTP(compteurPaquet++, &bmp);
-  #endif
-  
-  prot7.transmettrePaquetLecturePower(compteurPaquet++, &power);
-  
+    #if defined(DHTPIN) && defined(DHTTYPE)
+      prot7.transmettrePaquetLectureTH(compteurPaquet++, &dht);
+    #endif 
+    
+    #ifdef BUS_MODE_I2C
+    prot7.transmettrePaquetLectureTP(compteurPaquet++, &bmp);
+    #endif
+    
+    prot7.transmettrePaquetLecturePower(compteurPaquet++, &power);
+  }  
 }
 
 void networkMaintenance() {
@@ -263,9 +272,21 @@ void networkMaintenance() {
       }
     } else {
       if( ! mesh.checkConnection() ) {
-        mesh.renewAddress(500);
+        if( ! mesh.renewAddress(1500) ) {
+          // Tenter de redemarrer la radio
+          Serial.println(F("Reconnexion au mesh"));
+          mesh.begin(CANAL_MESH, RF24_250KBPS, MESH_RENEW_TIMEOUT);
+          radio.enableDynamicPayloads();
+          radio.setAutoAck(true);
+        }
       }
     }
+  }
+
+  if(radio.failureDetected) {
+    Serial.print(F("Hardware failure detected "));
+    Serial.println(radio.failureDetected);
+    radio.failureDetected = 0; // Reset flag
   }
 
   digitalWrite(PIN_LED, HIGH);
@@ -286,6 +307,7 @@ void attendreProchaineLecture() {
   power.deepSleep();
   digitalWrite(PIN_LED, HIGH);
 
+  radio.powerUp();
   radio.startListening();
   mesh.renewAddress(1000);
 
