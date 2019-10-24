@@ -7,6 +7,13 @@
 #include "Config.h"
 #include "MGAppareilsProt.h"
 
+
+#define ALIMENTATION_INCONNU 0
+#define ALIMENTATION_SECTEUR 1
+#define ALIMENTATION_BATT_AA 2
+#define ALIMENTATION_BATT_LITHIUM 3
+#define ALIMENTATION_NB_CONFIRMATIONS 5
+
 // volatile int f_wdt=1;
 
 // INSERER DANS LA DEFINITION DU SKETCH (avant setup)
@@ -51,6 +58,8 @@ class ArduinoPower : public FournisseurLecturePower
     byte _current_sleep_count = 0; // Cycles actuels
     const byte _sleep_cycles=CYCLES_SOMMEIL; // Nombre de cycles de sommeil (par reveil watchdog)
     uint32_t _lectureVcc;
+    byte _nbLecturesVerificationTypeCourant = 0; // Nombre de lectures qui confirment le type d'alimentation (secteur, batterie AA ou lithium)
+    byte _typeAlimentation = ALIMENTATION_INCONNU;
 
     long readVcc();
 

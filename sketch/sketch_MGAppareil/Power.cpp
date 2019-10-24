@@ -2,7 +2,7 @@
 #include <Arduino.h>
 
 bool ArduinoPower::isAlimentationSecteur() {
-  return reservePct() == 100;
+  return _typeAlimentation == ALIMENTATION_SECTEUR;
 }
 
 long ArduinoPower::readVcc() {
@@ -71,29 +71,65 @@ uint32_t ArduinoPower::millivolt() {
 }
 
 byte ArduinoPower::reservePct() {
-  byte reserve = 100;
-  
-  // Detecter le type d'alimentation
-  if(_lectureVcc > 3400) {
-    // Mode lithium
-    if(_lectureVcc > 4050) {
-      reserve = 100;
-    } else if(_lectureVcc > 3850) {
-      reserve = 80;
-    } else if(_lectureVcc > 3650) {
-      reserve = map(3650, 4050, 15, 80, _lectureVcc);
+  byte reserve = 100; // Retourne type erreur
+
+  // On fait un certain nombre de lectures pour confirmer le type d'alimentation
+  // Une fois le nombre de confirmations atteint, le type ne changera plus durant l'execution (jusqu'a un reset)
+  if (_nbLecturesVerificationTypeCourant < ALIMENTATION_NB_CONFIRMATIONS) {
+    
+    // Detecter le type d'alimentation
+    byte typeDetecte = ALIMENTATION_INCONNU;
+    if (_lectureVcc >= 3150 && _lectureVcc <= 3425) {
+      typeDetecte = ALIMENTATION_SECTEUR;
+    } else if(_lectureVcc > 3425) {
+      typeDetecte = ALIMENTATION_BATT_LITHIUM;
     } else {
-      reserve = 15;
+      typeDetecte = ALIMENTATION_BATT_AA;
+    }
+
+    // Augmenter le compte du nombre de confirmations
+    if( _typeAlimentation == ALIMENTATION_INCONNU ) {
+      // Set tentativement le type d'alimentation
+      _typeAlimentation = typeDetecte;
+      _nbLecturesVerificationTypeCourant = 1;
+    } else if(_typeAlimentation == typeDetecte) {
+      _nbLecturesVerificationTypeCourant++;
+      Serial.print(F("Confirmation type "));
+      Serial.print(_typeAlimentation);
+      Serial.print(F(" nb confirmations: "));
+      Serial.println(_nbLecturesVerificationTypeCourant);
+    } else {
+      _typeAlimentation = ALIMENTATION_INCONNU;
     }
     
-  } else if (_lectureVcc >= 3200 && _lectureVcc <= 3400) {
-    // Mode alimentation electrique
+  }
+  
+  // Detecter le type d'alimentation
+  if ( _typeAlimentation == ALIMENTATION_SECTEUR ) {
+  
+    // Mode alimentation secteur
     reserve = 100;
-  } else if (_lectureVcc >= 2723) {
+
+  } else if( _typeAlimentation == ALIMENTATION_BATT_LITHIUM ) {
+    
+    // Mode lithium
+    if(_lectureVcc > 3950) {
+      reserve = map(3950, 4200, 80, 100, _lectureVcc);      
+    } else if(_lectureVcc > 3700) {
+      reserve = map(3700, 3950, 20, 80, _lectureVcc);      
+    } else {
+      reserve = map(2700, 3700, 0, 20, _lectureVcc);      
+    }
+    
+  } else if ( _typeAlimentation == ALIMENTATION_BATT_AA ) {
+    
     // Mode AA
-    reserve = map(2723, 3100, 0, 100, _lectureVcc);
+    reserve = map(2700, 3150, 0, 100, _lectureVcc);
+  
   } else {
+    
     reserve = 0;
+  
   }
 
   return reserve;

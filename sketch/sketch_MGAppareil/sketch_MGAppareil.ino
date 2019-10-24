@@ -133,9 +133,6 @@ void loop() {
   // Lecture reseau
   networkMaintenance();
 
-  /* Clear le flag du watchdog. */
-  f_wdt = 0;
-
   // Effectuer lectures
   #if defined(DHTPIN) && defined(DHTTYPE)
     dht.lire();
@@ -159,6 +156,9 @@ void loop() {
   if(!power.isAlimentationSecteur()) {
     // Attendre la prochaine lecture
     attendreProchaineLecture();
+
+    // Clear le flag du watchdog.
+    f_wdt = 0;
   }
 }
 
@@ -296,11 +296,11 @@ void networkMaintenance() {
 
 void attendreProchaineLecture() {
 
-  Serial.println("Sleep");
+  Serial.println(F("Sleep"));
   
   // Power down the radio.  Note that the radio will get powered back up
   // on the next write() call.
-  // mesh.releaseAddress();
+  mesh.releaseAddress();
   radio.powerDown();
 
   digitalWrite(PIN_LED, LOW);
