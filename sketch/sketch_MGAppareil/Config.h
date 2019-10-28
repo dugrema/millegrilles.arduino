@@ -16,8 +16,8 @@
 #define DHTTYPE 22
 
 // Nouveau sketch
-// #define CANAL_MESH 0x7d  // Prod
-#define CANAL_MESH 0x48  // Test
+#define CANAL_MESH 0x7d  // Prod
+// #define CANAL_MESH 0x48  // Test
 // #define CANAL_MESH 0x65  // Dev
 // #define RATE_MESH RF24_250KBPS
 #define RATE_MESH RF24_2MBPS

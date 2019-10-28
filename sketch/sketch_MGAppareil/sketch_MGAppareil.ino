@@ -111,8 +111,8 @@ void setup() {
   radio.enableDynamicPayloads();
   radio.setAutoAck(true);
   radio.setRetries(15, 15);
-  // radio.setPALevel(RF24_PA_HIGH);
-  radio.setPALevel(RF24_PA_LOW);
+  radio.setPALevel(RF24_PA_HIGH);
+  // radio.setPALevel(RF24_PA_LOW);
 
   Serial.print(F("Connexion mesh avec nodeId "));
   mesh.setNodeID(nodeId);
@@ -162,10 +162,12 @@ void loop() {
     #endif
     
     // Transmettre information du senseur
-    transmettrePaquets();
+    erreurMesh = ! transmettrePaquets();
   
     // Lecture reseau
-    ecouterReseau();
+    if ( ! erreurMesh ) {
+      erreurMesh = ecouterReseau();
+    }
   } 
 
   if(!power.isAlimentationSecteur()) {
@@ -187,8 +189,10 @@ void loop() {
 // Transmet les paquets. 
 bool transmettrePaquets() {
 
-  const byte nombreEssais = 3;
-  const byte nombreEssaisPaquet0 = 10;
+  byte nombreEssaisPaquet0 = 5;
+  if(!power.isAlimentationSecteur()) {
+    nombreEssaisPaquet0 = 2;  // Moins d'essais sur batterie
+  }
 
   byte nombrePaquets = 2; // Init a 2, pour paquet 0 et paquet power.
   #ifdef BUS_MODE_ONEWIRE
@@ -205,65 +209,35 @@ bool transmettrePaquets() {
   #endif
 
   // Debut de la transmission
-  transmissionOk = false;
-  for(byte essai=0; essai<nombreEssaisPaquet0 && !transmissionOk; essai++) {
-    transmissionOk = prot7.transmettrePaquet0(MSG_TYPE_LECTURES_COMBINEES, nombrePaquets);
-    mesh.update();
-  }
+  transmissionOk = prot7.transmettrePaquet0(MSG_TYPE_LECTURES_COMBINEES, nombrePaquets, nombreEssaisPaquet0);
+  mesh.update();
 
   byte compteurPaquet = 1;  // Fourni le numero du paquet courant
 
   // Dalsemi OneWire (1W)
   #ifdef BUS_MODE_ONEWIRE
-    if(transmissionOk) {
-
-      transmissionOk = false;
-      for(byte essai=0; essai<nombreEssais && !transmissionOk; essai++) {
-        transmissionOk = prot7.transmettrePaquetLectureOneWire(compteurPaquet, &oneWireHandler);
-        compteurPaquet++;
-        mesh.update();
-      }
-    }
+    transmissionOk = prot7.transmettrePaquetLectureOneWire(compteurPaquet++, &oneWireHandler);
+    mesh.update();
+    if(!transmissionOk) return false;
   #endif
 
   // DHT
   #if defined(DHTPIN) && defined(DHTTYPE)
-    if(transmissionOk) {
-
-      transmissionOk = false;
-      for(byte essai=0; essai<nombreEssais && !transmissionOk; essai++) {
-        transmissionOk = prot7.transmettrePaquetLectureTH(compteurPaquet, &dht);
-        compteurPaquet++;
-        mesh.update();
-      }
-    }
+    transmissionOk = prot7.transmettrePaquetLectureTH(compteurPaquet++, &dht);
+    mesh.update();
+    if(!transmissionOk) return false;
   #endif 
 
   // Adafruit BMP
   #ifdef BUS_MODE_I2C
-    if(transmissionOk) {
-
-      transmissionOk = false;
-      for(byte essai=0; essai<nombreEssais && !transmissionOk; essai++) {
-      
-        transmissionOk = prot7.transmettrePaquetLectureTP(compteurPaquet, &bmp);
-        compteurPaquet++;
-        mesh.update();
-      }
-    }
+    transmissionOk = prot7.transmettrePaquetLectureTP(compteurPaquet++, &bmp);
+    mesh.update();
+    if(!transmissionOk) return false;
   #endif
 
   // Power info
-  if(transmissionOk) {
-
-    transmissionOk = false;
-    for(byte essai=0; essai<nombreEssais && !transmissionOk; essai++) {
-
-      transmissionOk = prot7.transmettrePaquetLecturePower(compteurPaquet, &power);
-      compteurPaquet++;
-      mesh.update();
-    }
-  }
+  transmissionOk = prot7.transmettrePaquetLecturePower(compteurPaquet++, &power);
+  mesh.update();
 
   return transmissionOk;
 }

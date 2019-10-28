@@ -65,7 +65,7 @@ class MGProtocoleV7 {
     byte lireReponseDhcp(byte* data);
 
     bool transmettreRequeteDhcp();
-    bool transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaquets);
+    bool transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaquets, byte retries);
 
     // Paquets classe SenseursPassifs
     bool transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLectureTH* fournisseur);

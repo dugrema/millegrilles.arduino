@@ -12,7 +12,7 @@ void MGProtocoleV7::ecrireUUID(byte* destination) {
   memcpy(destination, _uuid, 16);
 }
 
-bool MGProtocoleV7::transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaquets) {
+bool MGProtocoleV7::transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaquets, byte retries) {
     uint8_t transmitBuffer[24];
 
     // Format message Paquet0:
@@ -26,7 +26,7 @@ bool MGProtocoleV7::transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaqu
     ecrireUUID(_buffer + 5);
 
     bool transmissionOk = false;
-    for(byte essai=0; !transmissionOk && essai<5; essai++) { 
+    for(byte essai=0; !transmissionOk && essai<retries; essai++) { 
       transmissionOk = _mesh->write(_buffer, 'P', PAYLOAD_TAILLE_SIMPLE, MESH_MASTER_ID);
       if(!transmissionOk) {
         if( ! _mesh->checkConnection() ) {
@@ -72,12 +72,10 @@ bool MGProtocoleV7::transmettrePaquet(byte taillePayload) {
   char typePaquet = 'p';
   if(taillePayload == PAYLOAD_TAILLE_DOUBLE) typePaquet = '2';
   
-  for(byte essai=0; !transmissionOk && essai<20; essai++) { 
-    transmissionOk = _mesh->write(_buffer, typePaquet, taillePayload, MESH_MASTER_ID);
-    if(!transmissionOk) {
-      if( ! _mesh->checkConnection() ) {
-        _mesh->renewAddress(2000);
-      }
+  transmissionOk = _mesh->write(_buffer, typePaquet, taillePayload, MESH_MASTER_ID);
+  if(!transmissionOk) {
+    if( ! _mesh->checkConnection() ) {
+      _mesh->renewAddress(2000);
     }
   }
   

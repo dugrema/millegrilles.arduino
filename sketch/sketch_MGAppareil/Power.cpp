@@ -120,12 +120,16 @@ void ArduinoPower::_calculerReservePct() {
   } else if( _typeAlimentation == ALIMENTATION_BATT_LITHIUM ) {
     
     // Mode lithium
-    if(_lectureVcc > 3950) {
+    if(_lectureVcc > 4200) {
+      reserve = 100;
+    } else if(_lectureVcc > 3950) {
       reserve = map(3950, 4200, 80, 100, _lectureVcc);      
     } else if(_lectureVcc > 3600) {
       reserve = map(3600, 3950, 20, 80, _lectureVcc);      
-    } else {
+    } else if(_lectureVcc > 2700) {
       reserve = map(2700, 3600, 0, 20, _lectureVcc);      
+    } else {
+      reserve = 0;
     }
     
   } else if ( _typeAlimentation == ALIMENTATION_BATT_AA ) {
