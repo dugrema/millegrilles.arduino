@@ -1,6 +1,8 @@
 #ifndef MGCONFIG_config_h
 #define MGCONFIG_config_h
 
+#include <RF24Mesh.h>
+
 // Contient des constantes pour tous les modules
 
 // Bus TWI / I2C
@@ -14,7 +16,11 @@
 #define DHTTYPE 22
 
 // Nouveau sketch
-#define CANAL_MESH 0x7d
+// #define CANAL_MESH 0x7d  // Prod
+#define CANAL_MESH 0x48  // Test
+// #define CANAL_MESH 0x65  // Dev
+// #define RATE_MESH RF24_250KBPS
+#define RATE_MESH RF24_2MBPS
 #define NODE_ID_DEFAULT 1
 #define PIN_LED 6
 #define ONE_WIRE_PIN 10

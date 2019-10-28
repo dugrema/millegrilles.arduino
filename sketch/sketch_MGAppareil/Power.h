@@ -60,8 +60,10 @@ class ArduinoPower : public FournisseurLecturePower
     uint32_t _lectureVcc;
     byte _nbLecturesVerificationTypeCourant = 0; // Nombre de lectures qui confirment le type d'alimentation (secteur, batterie AA ou lithium)
     byte _typeAlimentation = ALIMENTATION_INCONNU;
+    byte _reserve = 0;
 
     long readVcc();
+    void _calculerReservePct();
 
 };
 

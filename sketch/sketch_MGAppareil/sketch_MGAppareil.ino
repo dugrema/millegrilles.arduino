@@ -49,14 +49,20 @@ byte uuid[16];
 // *****************
 
 // Radio nRF24L01 sur pins CE=7, CSN=8
-RF24 radio(RF24_CE_PIN,RF24_CSN_PIN);
+RF24 radio(RF24_CE_PIN, RF24_CSN_PIN);
 RF24Network network(radio);
 RF24Mesh mesh(radio,network);
 
 byte nodeId = NODE_ID_DEFAULT;
-// Toujours verifier nodeId avec DHCP au demarrage
+
+// Renouveller nodeId. Toujours verifier nodeId avec DHCP au demarrage
 bool doitVerifierAdresseDhcp = true;
 
+// Flag qui indique un echec de transmission
+bool erreurMesh = false;
+bool transmissionOk = false;
+
+// Helper conversion de donnees avec protocole Version 7
 MGProtocoleV7 prot7(uuid, &mesh);
 
 // Power management
@@ -71,6 +77,7 @@ ISR(WDT_vect)
   }
 }
 
+// Setup initial
 void setup() {
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, HIGH);
@@ -99,16 +106,21 @@ void setup() {
     }
   }
 
+  Serial.println(F("Setup radio"));
+  radio.begin();
+  radio.enableDynamicPayloads();
+  radio.setAutoAck(true);
+  radio.setRetries(15, 15);
+  // radio.setPALevel(RF24_PA_HIGH);
+  radio.setPALevel(RF24_PA_LOW);
+
   Serial.print(F("Connexion mesh avec nodeId "));
   mesh.setNodeID(nodeId);
   Serial.println(nodeId);
-  mesh.begin(CANAL_MESH, RF24_250KBPS, MESH_RENEW_TIMEOUT);
-  radio.enableDynamicPayloads();
-  radio.setAutoAck(true);
-  Serial.println(F("Connexion mesh complete"));
-
-  radio.setPALevel(RF24_PA_HIGH);
+  mesh.begin(CANAL_MESH, RATE_MESH, MESH_RENEW_TIMEOUT);
   radio.printDetails();
+
+  Serial.println(F("Connexion mesh initialise"));
 
   /* Clear the reset flag. */
   MCUSR &= ~(1<<WDRF);
@@ -121,37 +133,40 @@ void setup() {
   /* Enable the WD interrupt (note no reset). */
   WDTCSR |= _BV(WDIE);
 
-  Serial.println(F("Pret"));
-
   digitalWrite(PIN_LED, LOW);
   delay(200);
   digitalWrite(PIN_LED, HIGH);
+
+  Serial.print(F("Setup termine apres "));
+  Serial.println(millis());
 }
 
 void loop() {
 
-  // Lecture reseau
+  // Lecture reseau, ecouter avant de transmettre
   networkMaintenance();
 
-  // Effectuer lectures
-  #if defined(DHTPIN) && defined(DHTTYPE)
-    dht.lire();
-  #endif
-  
-  #ifdef BUS_MODE_ONEWIRE
-    // Fait la recherche initiale sur le bus
-    oneWireHandler.lire();
-  #elif defined(BUS_MODE_I2C)
-    bmp.lire();
-  #endif
-  
   power.lireVoltageBatterie();
-
-  // Transmettre information du senseur
-  transmettrePaquets();
-
-  // Lecture reseau
-  networkMaintenance();
+  
+  if( ! erreurMesh ) {
+    // Effectuer lectures
+    #if defined(DHTPIN) && defined(DHTTYPE)
+      dht.lire();
+    #endif
+    
+    #ifdef BUS_MODE_ONEWIRE
+      // Fait la recherche initiale sur le bus
+      oneWireHandler.lire();
+    #elif defined(BUS_MODE_I2C)
+      bmp.lire();
+    #endif
+    
+    // Transmettre information du senseur
+    transmettrePaquets();
+  
+    // Lecture reseau
+    ecouterReseau();
+  } 
 
   if(!power.isAlimentationSecteur()) {
     // Attendre la prochaine lecture
@@ -159,10 +174,21 @@ void loop() {
 
     // Clear le flag du watchdog.
     f_wdt = 0;
+  } else if( erreurMesh ) {
+    // Mode secteur et on a une erreur reseau. On introduit un delai
+    // avant de tenter une nouvelle connexion.
+    long delai = 1 * (MESH_RENEW_TIMEOUT + (4 * nodeId));  // Delai en ms, utilise nodeID pour repartir attente
+    Serial.print("Erreur mesh, reconnecter apres ");
+    Serial.println(delai);
+    delay(delai);
   }
 }
 
-void transmettrePaquets() {
+// Transmet les paquets. 
+bool transmettrePaquets() {
+
+  const byte nombreEssais = 3;
+  const byte nombreEssaisPaquet0 = 10;
 
   byte nombrePaquets = 2; // Init a 2, pour paquet 0 et paquet power.
   #ifdef BUS_MODE_ONEWIRE
@@ -179,56 +205,125 @@ void transmettrePaquets() {
   #endif
 
   // Debut de la transmission
-  bool paquetOk = false;
-  for(byte essai=0; essai<10 && !paquetOk; essai++) {
-    paquetOk = prot7.transmettrePaquet0(MSG_TYPE_LECTURES_COMBINEES, nombrePaquets);
+  transmissionOk = false;
+  for(byte essai=0; essai<nombreEssaisPaquet0 && !transmissionOk; essai++) {
+    transmissionOk = prot7.transmettrePaquet0(MSG_TYPE_LECTURES_COMBINEES, nombrePaquets);
+    mesh.update();
   }
 
-  if(paquetOk) {
-    byte compteurPaquet = 1;  // Fourni le numero du paquet courant
-    #ifdef BUS_MODE_ONEWIRE
-    //while()...
-    prot7.transmettrePaquetLectureOneWire(compteurPaquet++, &oneWireHandler);
-    #endif
-  
-    #if defined(DHTPIN) && defined(DHTTYPE)
-      prot7.transmettrePaquetLectureTH(compteurPaquet++, &dht);
-    #endif 
-    
-    #ifdef BUS_MODE_I2C
-    prot7.transmettrePaquetLectureTP(compteurPaquet++, &bmp);
-    #endif
-    
-    prot7.transmettrePaquetLecturePower(compteurPaquet++, &power);
-  }  
+  byte compteurPaquet = 1;  // Fourni le numero du paquet courant
+
+  // Dalsemi OneWire (1W)
+  #ifdef BUS_MODE_ONEWIRE
+    if(transmissionOk) {
+
+      transmissionOk = false;
+      for(byte essai=0; essai<nombreEssais && !transmissionOk; essai++) {
+        transmissionOk = prot7.transmettrePaquetLectureOneWire(compteurPaquet, &oneWireHandler);
+        compteurPaquet++;
+        mesh.update();
+      }
+    }
+  #endif
+
+  // DHT
+  #if defined(DHTPIN) && defined(DHTTYPE)
+    if(transmissionOk) {
+
+      transmissionOk = false;
+      for(byte essai=0; essai<nombreEssais && !transmissionOk; essai++) {
+        transmissionOk = prot7.transmettrePaquetLectureTH(compteurPaquet, &dht);
+        compteurPaquet++;
+        mesh.update();
+      }
+    }
+  #endif 
+
+  // Adafruit BMP
+  #ifdef BUS_MODE_I2C
+    if(transmissionOk) {
+
+      transmissionOk = false;
+      for(byte essai=0; essai<nombreEssais && !transmissionOk; essai++) {
+      
+        transmissionOk = prot7.transmettrePaquetLectureTP(compteurPaquet, &bmp);
+        compteurPaquet++;
+        mesh.update();
+      }
+    }
+  #endif
+
+  // Power info
+  if(transmissionOk) {
+
+    transmissionOk = false;
+    for(byte essai=0; essai<nombreEssais && !transmissionOk; essai++) {
+
+      transmissionOk = prot7.transmettrePaquetLecturePower(compteurPaquet, &power);
+      compteurPaquet++;
+      mesh.update();
+    }
+  }
+
+  return transmissionOk;
 }
 
-void networkMaintenance() {
+// Entretien reseau. Retourne false si le reseau est en erreur.
+bool networkMaintenance() {
+
+  // Section entretien connexion, reconnexion
+  mesh.update();
+  if(erreurMesh) {
+    while(network.available()) {
+      // Vider buffer
+      mesh.update();
+      networkProcess();
+    }
+    
+    Serial.println(F("Reconnexion au mesh"));
+
+    // erreurMesh = !mesh.checkConnection();
+
+    if( erreurMesh ) {
+      if( ! mesh.renewAddress(MESH_RENEW_TIMEOUT / 4) ) {
+        // Tenter de redemarrer la radio
+        Serial.println(F("Redemarrage radio"));
+        mesh.begin(CANAL_MESH, RATE_MESH, MESH_RENEW_TIMEOUT);
+      }
+    }
+
+    erreurMesh = false;
+  }
+
+  if(radio.failureDetected) {
+    Serial.print(F("Hardware failure detected "));
+    Serial.println(radio.failureDetected);
+    radio.failureDetected = 0; // Reset flag
+  }
+
+  // Section DHCP
+  if(doitVerifierAdresseDhcp) {
+    // Le senseur vient d'etre initialise, il faut demander un nouveau nodeId au serveur
+    erreurMesh = !prot7.transmettreRequeteDhcp();
+    Serial.println(F("Requete DHCP transmise"));
+  }
+
+}
+
+bool ecouterReseau() {
 
   byte pinOutput = 200;
   byte pintThrottle = 0;
   bool directionPin = false;
 
-  if(doitVerifierAdresseDhcp) {
-    // Le senseur vient d'etre initialise, il faut demander un nouveau nodeId au serveur
-    prot7.transmettreRequeteDhcp();
-    Serial.println(F("Requete DHCP transmise"));
-  }
-  
+  // Section lecture transmissions du reseau
   long timer = millis();
-  uint16_t attente = 1000;
+  uint16_t attente = 500;  // 500ms sur batterie
   if(power.isAlimentationSecteur()) {
     // Mode alimentation secteur - cet appareil devient un node fiable pour le mesh.
     // On reste en ecoute durant l'equivalent du mode sleep.
     attente = 8000 * CYCLES_SOMMEIL;
-//    Serial.print("Secteur, on attend sur reseau: ");
-//    Serial.println(attente);
   }
-
-//  Serial.print(F("Reserve batterie: "));
-//  Serial.println(power.reservePct());
-//  Serial.print(F("Sur secteur: "));
-//  Serial.println(power.isAlimentationSecteur());
 
   while(millis() - timer < attente) {
     if(pintThrottle++ == 4) {
@@ -241,62 +336,60 @@ void networkMaintenance() {
     
     analogWrite(PIN_LED, pinOutput);
     mesh.update();
+    bool resultatLecture = networkProcess();
+    if(!resultatLecture) {
+      return false;
+    }
     
-    if(network.available()){
-      RF24NetworkHeader header;
-      network.peek(header);
-      
-      byte dat[64];
-      byte fromNodeId=0;
-      byte nodeIdReserve=0;
+  }
 
-      switch(header.type){
-        // Display the incoming millis() values from the sensor nodes
-        case 'd': // Reponse DHCP
-          network.read(header,&dat,sizeof(dat)); 
-          nodeIdReserve = prot7.lireReponseDhcp((byte*)&dat);
-          if(nodeIdReserve > 1) {
-            nodeId = nodeIdReserve;  // Modification du node Id interne
-            mesh.setNodeID(nodeIdReserve);
-            EEPROM.update(ADDRESS_SENSEUR, nodeId);
-            mesh.renewAddress(1000);
-            doitVerifierAdresseDhcp = false;
-            
-            // Changement de nodeId
-            Serial.print(F("Nouveau node id recu de DHCP: "));
-            Serial.println(nodeIdReserve);
-          }
-          break;
-        default: network.read(header,0,0); Serial.println(header.type);break;
-        
-      }
-    } else {
-      if( ! mesh.checkConnection() ) {
-        if( ! mesh.renewAddress(1500) ) {
-          // Tenter de redemarrer la radio
-          Serial.println(F("Reconnexion au mesh"));
-          mesh.begin(CANAL_MESH, RF24_250KBPS, MESH_RENEW_TIMEOUT);
-          radio.enableDynamicPayloads();
-          radio.setAutoAck(true);
+  digitalWrite(PIN_LED, HIGH);  
+  return true;
+}
+
+bool networkProcess() {
+  if(network.available()){
+    RF24NetworkHeader header;
+    network.peek(header);
+    
+    byte dat[64];
+    byte fromNodeId=0;
+    byte nodeIdReserve=0;
+
+    switch(header.type){
+      // Display the incoming millis() values from the sensor nodes
+      case 'd': // Reponse DHCP
+        network.read(header,&dat,sizeof(dat)); 
+        nodeIdReserve = prot7.lireReponseDhcp((byte*)&dat);
+        if(nodeIdReserve > 1) {
+          nodeId = nodeIdReserve;  // Modification du node Id interne
+          mesh.setNodeID(nodeIdReserve);
+          EEPROM.update(ADDRESS_SENSEUR, nodeId);
+          mesh.renewAddress(1000);
+          doitVerifierAdresseDhcp = false;
+          
+          // Changement de nodeId
+          Serial.print(F("Nouveau node id recu de DHCP: "));
+          Serial.println(nodeIdReserve);
         }
-      }
+        break;
+      default: network.read(header,0,0); Serial.println(header.type);break;
+      
+    }
+  } else {
+    erreurMesh = ! mesh.checkConnection();
+    if( erreurMesh ) {
+      return false;  // Arrete traitement, va reconnecter et recommencer dans loop
     }
   }
 
-  if(radio.failureDetected) {
-    Serial.print(F("Hardware failure detected "));
-    Serial.println(radio.failureDetected);
-    radio.failureDetected = 0; // Reset flag
-  }
-
-  digitalWrite(PIN_LED, HIGH);
-//   Serial.println(F("Fin verif maintenance"));
+  return true;
 }
-
 
 void attendreProchaineLecture() {
 
   Serial.println(F("Sleep"));
+  delay(75); // Finir transmettre Serial
   
   // Power down the radio.  Note that the radio will get powered back up
   // on the next write() call.

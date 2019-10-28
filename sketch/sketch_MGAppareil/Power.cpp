@@ -28,6 +28,7 @@ long ArduinoPower::readVcc() {
   long result = (high<<8) | low;
 
   result = 1125300L / result; // Calculate Vcc (in mV); 1125300 = 1.1*1023*1000
+
   return result; // Vcc in millivolts
 };
 
@@ -41,6 +42,8 @@ void ArduinoPower::lireVoltageBatterie() {
     voltage = map(sensorValue, 0, 1023, 0, voltage);
   }
   _lectureVcc = uint32_t(voltage);
+
+  _calculerReservePct();
 }
 
 void ArduinoPower::deepSleep() {
@@ -70,9 +73,8 @@ uint32_t ArduinoPower::millivolt() {
   return _lectureVcc;
 }
 
-byte ArduinoPower::reservePct() {
-  byte reserve = 100; // Retourne type erreur
-
+void ArduinoPower::_calculerReservePct() {
+  
   // On fait un certain nombre de lectures pour confirmer le type d'alimentation
   // Une fois le nombre de confirmations atteint, le type ne changera plus durant l'execution (jusqu'a un reset)
   if (_nbLecturesVerificationTypeCourant < ALIMENTATION_NB_CONFIRMATIONS) {
@@ -81,11 +83,15 @@ byte ArduinoPower::reservePct() {
     byte typeDetecte = ALIMENTATION_INCONNU;
     if (_lectureVcc >= 3150 && _lectureVcc <= 3425) {
       typeDetecte = ALIMENTATION_SECTEUR;
+      Serial.print(F("Alimentation secteur "));
     } else if(_lectureVcc > 3425) {
       typeDetecte = ALIMENTATION_BATT_LITHIUM;
+      Serial.print(F("Alimentation lithium "));
     } else {
       typeDetecte = ALIMENTATION_BATT_AA;
+      Serial.print(F("Alimentation AA "));
     }
+    Serial.println(_lectureVcc);
 
     // Augmenter le compte du nombre de confirmations
     if( _typeAlimentation == ALIMENTATION_INCONNU ) {
@@ -105,6 +111,7 @@ byte ArduinoPower::reservePct() {
   }
   
   // Detecter le type d'alimentation
+  long reserve = 0;
   if ( _typeAlimentation == ALIMENTATION_SECTEUR ) {
   
     // Mode alimentation secteur
@@ -115,10 +122,10 @@ byte ArduinoPower::reservePct() {
     // Mode lithium
     if(_lectureVcc > 3950) {
       reserve = map(3950, 4200, 80, 100, _lectureVcc);      
-    } else if(_lectureVcc > 3700) {
-      reserve = map(3700, 3950, 20, 80, _lectureVcc);      
+    } else if(_lectureVcc > 3600) {
+      reserve = map(3600, 3950, 20, 80, _lectureVcc);      
     } else {
-      reserve = map(2700, 3700, 0, 20, _lectureVcc);      
+      reserve = map(2700, 3600, 0, 20, _lectureVcc);      
     }
     
   } else if ( _typeAlimentation == ALIMENTATION_BATT_AA ) {
@@ -132,7 +139,17 @@ byte ArduinoPower::reservePct() {
   
   }
 
-  return reserve;
+  if(reserve >= 0 && reserve <= 100) {
+    _reserve = (byte)reserve;
+  } else {
+    _reserve = 101; // Erreur lecture
+  }
+  
+}
+
+
+byte ArduinoPower::reservePct() {
+  return _reserve;
 }
 
 byte ArduinoPower::alerte() {
