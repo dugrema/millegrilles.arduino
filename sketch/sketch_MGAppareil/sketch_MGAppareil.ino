@@ -111,7 +111,7 @@ void setup() {
   radio.enableDynamicPayloads();
   radio.setAutoAck(true);
   radio.setRetries(15, 15);
-  radio.setPALevel(RF24_PA_HIGH);
+  radio.setPALevel(RF24_PA_MAX);
   // radio.setPALevel(RF24_PA_LOW);
 
   Serial.print(F("Connexion mesh avec nodeId "));
