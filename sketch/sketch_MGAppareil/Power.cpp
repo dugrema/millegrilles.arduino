@@ -123,11 +123,11 @@ void ArduinoPower::_calculerReservePct() {
     if(_lectureVcc > 4200) {
       reserve = 100;
     } else if(_lectureVcc > 3950) {
-      reserve = map(3950, 4200, 80, 100, _lectureVcc);      
+      reserve = map(_lectureVcc, 3950, 4200, 80, 100);
     } else if(_lectureVcc > 3600) {
-      reserve = map(3600, 3950, 20, 80, _lectureVcc);      
+      reserve = map(_lectureVcc, 3600, 3950, 20, 80);
     } else if(_lectureVcc > 2700) {
-      reserve = map(2700, 3600, 0, 20, _lectureVcc);      
+      reserve = map(_lectureVcc, 2700, 3600, 0, 20);
     } else {
       reserve = 0;
     }
@@ -135,7 +135,7 @@ void ArduinoPower::_calculerReservePct() {
   } else if ( _typeAlimentation == ALIMENTATION_BATT_AA ) {
     
     // Mode AA
-    reserve = map(2700, 3150, 0, 100, _lectureVcc);
+    reserve = map(_lectureVcc, 2700, 3150, 0, 100);
   
   } else {
     
@@ -158,10 +158,19 @@ byte ArduinoPower::reservePct() {
 
 byte ArduinoPower::alerte() {
   byte alerte = 0;
-  if(_lectureVcc > 3400 && _lectureVcc < 3500) {
-    alerte = 1;
-  } else if(_lectureVcc < 2750) {
-    alerte = 1;
+
+  if( _typeAlimentation == ALIMENTATION_BATT_LITHIUM ) {
+    if(_lectureVcc < 3000) {
+      alerte = 2;
+    } else  if(_lectureVcc < 3500) {
+      alerte = 1;
+    }
+  } else if ( _typeAlimentation == ALIMENTATION_BATT_AA ) {
+    if(_lectureVcc < 2740) {
+      alerte = 2;
+    } else if(_lectureVcc < 2775) {
+      alerte = 1;
+    }
   }
 
   return alerte;

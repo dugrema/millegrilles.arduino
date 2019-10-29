@@ -6,10 +6,10 @@
 // Contient des constantes pour tous les modules
 
 // Bus TWI / I2C
-#define BUS_MODE_I2C
+// #define BUS_MODE_I2C
 
 // Bus OneWire, utilise pour thermometres DS18B20/DS18S20.
-// #define BUS_MODE_ONEWIRE
+#define BUS_MODE_ONEWIRE
 
 // Senseur DHT
 #define DHTPIN 4
@@ -18,11 +18,11 @@
 // Nouveau sketch
 
 // Prod
-// #define CANAL_MESH 0x7d  // Prod
+#define CANAL_MESH 0x7d  // Prod
 #define RATE_MESH RF24_2MBPS
 
 // Test
-#define CANAL_MESH 0x48  // Test
+// #define CANAL_MESH 0x48  // Test
 // #define CANAL_MESH 0x65  // Dev
 // #define RATE_MESH RF24_250KBPS
 
