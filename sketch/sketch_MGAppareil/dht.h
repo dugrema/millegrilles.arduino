@@ -80,6 +80,10 @@ class MilleGrillesDHT : public FournisseurLectureTH {
     byte _dht_pin;
     byte _dht_type;
     int _dht_chk=DHTLIB_ERROR_TIMEOUT;
+
+    // Le senseur n'est pas fiable, on va comparer l'ecart avec
+    // la derniere temperature pour determiner si la valeur est plausible
+    int _temp_precedente = NO_TEMP;
   
 };
 

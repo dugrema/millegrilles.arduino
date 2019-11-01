@@ -208,6 +208,7 @@ void MilleGrillesDHT::lire() {
 int MilleGrillesDHT::temperature() {
   int temperature = NO_TEMP;
   float tempfloat;
+  int ecart = 0;
   switch (_dht_chk)
   {
     case DHTLIB_OK:  
@@ -220,6 +221,25 @@ int MilleGrillesDHT::temperature() {
       temperature = NO_TEMP;
     break;
   }
+
+  if(temperature < -500 || temperature > 500) {
+    // Temperature hors de -50C a 50C (*10), lecture erronee
+    temperature = NO_TEMP;
+  } else {
+    // Le senseur n'est pas fiable, on verifie si l'ecart avec la derniere lecture est
+    // plausible.
+    if(_temp_precedente != NO_TEMP) {
+      ecart = abs(_temp_precedente - temperature);
+      if(ecart > 50) {
+        // Ecart de plus de 5C, on ignore cette lecture.
+        temperature = NO_TEMP;
+      }
+    }
+
+    _temp_precedente = temperature; // Conserver pour prochaine comparaison
+    
+  }
+  
   return temperature;
 }
 
@@ -237,6 +257,11 @@ uint16_t MilleGrillesDHT::humidite() {
     default: 
       humidite = NO_HUMIDITY;
     break;
+  }
+
+  if(humidite > 1000) {
+    // Lecture erronee (plus grand que 100 * 10.0)
+    humidite = NO_HUMIDITY;
   }
     
   return humidite;
