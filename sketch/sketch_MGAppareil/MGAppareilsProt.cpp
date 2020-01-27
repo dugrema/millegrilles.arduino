@@ -1,91 +1,87 @@
 #include "MGAppareilsProt.h"
 #include <Arduino.h>
 
-byte MGProtocoleV7::lireReponseDhcp(byte* data) {
+byte MGProtocoleV8::lireReponseDhcp(byte* data) {
   byte nodeId_reserve = data[3];
   return nodeId_reserve;
 }
 
 // Ecrit UUID a partir du program space vers un buffer
-void MGProtocoleV7::ecrireUUID(byte* destination) {
+void MGProtocoleV8::ecrireUUID(byte* destination) {
   // memcpy_P(destination, _uuid, 16);  // Utiliser si UUID est dans PROGMEM
   memcpy(destination, _uuid, 16);
 }
 
-bool MGProtocoleV7::transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaquets, byte retries) {
-    uint8_t transmitBuffer[24];
+bool MGProtocoleV8::transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaquets) {
+    uint8_t transmitBuffer[PAYLOAD_TAILLE_SIMPLE];
 
-    // Format message Paquet0:
+    // Format message :
     // Version (1 byte)
+    // Node ID (1 byte)
     // TYPE MESSAGE 2 bytes
     // Nombre paquets 2 bytes
     // UUID 16 bytes
+
+    uint16_t typePaquet0 = MSG_TYPE_PAQUET0;
+    
     _buffer[0] = VERSION_PROTOCOLE;
-    memcpy(_buffer + 1, &typeMessage, sizeof(typeMessage));
-    memcpy(_buffer + 3, &nombrePaquets, sizeof(nombrePaquets));
-    ecrireUUID(_buffer + 5);
+    _buffer[1] = _nodeId[0];
+    memcpy(_buffer + 2, &typePaquet0, sizeof(typePaquet0));
+    memcpy(_buffer + 4, &typeMessage, sizeof(typeMessage));
+    memcpy(_buffer + 6, &nombrePaquets, sizeof(nombrePaquets));
+    ecrireUUID(_buffer + 8);
 
     bool transmissionOk = false;
-    for(byte essai=0; !transmissionOk && essai<retries; essai++) { 
-      transmissionOk = _mesh->write(_buffer, 'P', PAYLOAD_TAILLE_SIMPLE, MESH_MASTER_ID);
-      if(!transmissionOk) {
-        if( ! _mesh->checkConnection() ) {
-          _mesh->renewAddress(2000);
-        }
-      }
+    byte compteurTransmissions = 0;
+    while(!transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
+      transmissionOk = _radio->write(_buffer, PAYLOAD_TAILLE_SIMPLE);
     }
 
     return transmissionOk;
 }
 
-bool MGProtocoleV7::transmettreRequeteDhcp() {
-    uint8_t transmitBuffer[24];
+bool MGProtocoleV8::transmettreRequeteDhcp() {
+    uint8_t transmitBuffer[PAYLOAD_TAILLE_SIMPLE];
 
-    // Format message Paquet0:
-    // Version (1 byte)
-    // TYPE MESSAGE 2 bytes
-    // Nombre paquets 2 bytes
-    // UUID 16 bytes
+    // Format message :
+    // Version - 1 byte
+    // Node ID - 1 byte
+    // TYPE MESSAGE - 2 bytes
+    // Nombre paquets - 2 bytes
+    // UUID - 16 bytes
 
     uint16_t typeMessage = MSG_TYPE_REQUETE_DHCP;
     
     _buffer[0] = VERSION_PROTOCOLE;
-    memcpy(_buffer + 1, &typeMessage, sizeof(typeMessage));
-    ecrireUUID(_buffer + 3);
+    _buffer[1] = _nodeId[0];
+    memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
+    ecrireUUID(_buffer + 4);
 
     bool transmissionOk = false;
-    for(byte essai=0; !transmissionOk && essai<15; essai++) {
-      transmissionOk = _mesh->write(_buffer, 'D', PAYLOAD_TAILLE_SIMPLE, MESH_MASTER_ID);
-      if(!transmissionOk) {
-        if( ! _mesh->checkConnection() ) {
-          _mesh->renewAddress(2000);
-        }
-      }
+    byte compteurTransmissions = 0;
+    while(!transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
+      transmissionOk = _radio->write(_buffer, PAYLOAD_TAILLE_SIMPLE);
     }
 
     return transmissionOk;
 }
 
-bool MGProtocoleV7::transmettrePaquet(byte taillePayload) {
+bool MGProtocoleV8::transmettrePaquet(byte taillePayload) {
   bool transmissionOk = false;
+  byte compteurTransmissions = 0;
   
-  char typePaquet = 'p';
-  if(taillePayload == PAYLOAD_TAILLE_DOUBLE) typePaquet = '2';
-  
-  transmissionOk = _mesh->write(_buffer, typePaquet, taillePayload, MESH_MASTER_ID);
-  if(!transmissionOk) {
-    if( ! _mesh->checkConnection() ) {
-      _mesh->renewAddress(2000);
-    }
+  while(!transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
+    transmissionOk = _radio->write(_buffer, taillePayload);
   }
   
   return transmissionOk;
 }
 
-bool MGProtocoleV7::transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLectureTH* fournisseur) {
+bool MGProtocoleV8::transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLectureTH* fournisseur) {
 
   // Format message THP (Temperatures, Humidite, Pression Atmospherique)
   // Version - 1 byte
+  // Node ID - 1 byte
   // typeMessage - 2 bytes
   // noPaquet - 2 bytes
   // temperature - 2 bytes
@@ -97,18 +93,20 @@ bool MGProtocoleV7::transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLec
   uint16_t humidite = fournisseur->humidite();
 
   _buffer[0] = VERSION_PROTOCOLE;
-  memcpy(_buffer + 1, &typeMessage, sizeof(typeMessage));
-  memcpy(_buffer + 3, &noPaquet, sizeof(noPaquet));
-  memcpy(_buffer + 5, &temperature, sizeof(temperature));
-  memcpy(_buffer + 7, &humidite, sizeof(humidite));
+  _buffer[1] = _nodeId[0];
+  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
+  memcpy(_buffer + 4, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 6, &temperature, sizeof(temperature));
+  memcpy(_buffer + 8, &humidite, sizeof(humidite));
 
   return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
 }
 
-bool MGProtocoleV7::transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLectureTP* fournisseur) {
+bool MGProtocoleV8::transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLectureTP* fournisseur) {
 
   // Format message TP (Temperatures,  Pression Atmospherique)
   // Version - 1 byte
+  // Node ID - 1 byte
   // typeMessage - 2 bytes
   // noPaquet - 2 bytes
   // typeMessage - 2 bytes
@@ -121,18 +119,20 @@ bool MGProtocoleV7::transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLec
   uint16_t pression = fournisseur->pression();
 
   _buffer[0] = VERSION_PROTOCOLE;
-  memcpy(_buffer + 1, &typeMessage, sizeof(typeMessage));
-  memcpy(_buffer + 3, &noPaquet, sizeof(noPaquet));
-  memcpy(_buffer + 5, &temperature, sizeof(temperature));
-  memcpy(_buffer + 7, &pression, sizeof(pression));
+  _buffer[1] = _nodeId[0];
+  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
+  memcpy(_buffer + 4, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 6, &temperature, sizeof(temperature));
+  memcpy(_buffer + 8, &pression, sizeof(pression));
 
   return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
 }
 
-bool MGProtocoleV7::transmettrePaquetLecturePower(uint16_t noPaquet, FournisseurLecturePower* fournisseur) {
+bool MGProtocoleV8::transmettrePaquetLecturePower(uint16_t noPaquet, FournisseurLecturePower* fournisseur) {
 
   // Format message Power
   // Version - 1 byte
+  // Node ID - 1 byte
   // typeMessage - 2 bytes
   // noPaquet - 2 bytes
   // millivolt - 4 bytes
@@ -146,18 +146,20 @@ bool MGProtocoleV7::transmettrePaquetLecturePower(uint16_t noPaquet, Fournisseur
   byte alerte = fournisseur->alerte();
 
   _buffer[0] = VERSION_PROTOCOLE;
-  memcpy(_buffer + 1, &typeMessage, sizeof(typeMessage));
-  memcpy(_buffer + 3, &noPaquet, sizeof(noPaquet));
-  memcpy(_buffer + 5, &millivolt, sizeof(millivolt));
-  memcpy(_buffer + 9, &reservePct, sizeof(reservePct));
-  memcpy(_buffer + 10, &alerte, sizeof(alerte));
+  _buffer[1] = _nodeId[0];
+  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
+  memcpy(_buffer + 4, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 6, &millivolt, sizeof(millivolt));
+  memcpy(_buffer + 10, &reservePct, sizeof(reservePct));
+  memcpy(_buffer + 11, &alerte, sizeof(alerte));
 
   return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
 }
 
-bool MGProtocoleV7::transmettrePaquetLectureOneWire(uint16_t noPaquet, FournisseurLectureOneWire* fournisseur) {
-  // Format message Power
+bool MGProtocoleV8::transmettrePaquetLectureOneWire(uint16_t noPaquet, FournisseurLectureOneWire* fournisseur) {
+  // Format message 1W
   // Version - 1 byte
+  // Node ID - 1 byte
   // typeMessage - 2 bytes
   // noPaquet - 2 bytes
   // adresse - 8 bytes
@@ -166,15 +168,16 @@ bool MGProtocoleV7::transmettrePaquetLectureOneWire(uint16_t noPaquet, Fournisse
   uint16_t typeMessage = MSG_TYPE_LECTURE_ONEWIRE;
 
   _buffer[0] = VERSION_PROTOCOLE;
-  memcpy(_buffer + 1, &typeMessage, sizeof(typeMessage));
-  memcpy(_buffer + 3, &noPaquet, sizeof(noPaquet));
-  memcpy(_buffer + 5, fournisseur->adresse(), 8);
-  memcpy(_buffer + 13, fournisseur->data(), 12);
+  _buffer[1] = _nodeId[0];
+  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
+  memcpy(_buffer + 4, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 6, fournisseur->adresse(), 8);
+  memcpy(_buffer + 14, fournisseur->data(), 12);
 
-  return transmettrePaquet(PAYLOAD_TAILLE_DOUBLE);
+  return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
 }
 
-//bool MGProtocoleV7::transmettrePaquetLectureMillivolt(uint16_t noPaquet, uint32_t millivolt1, uint32_t millivolt2, uint32_t millivolt3, uint32_t millivolt4) {
+//bool MGProtocoleV8::transmettrePaquetLectureMillivolt(uint16_t noPaquet, uint32_t millivolt1, uint32_t millivolt2, uint32_t millivolt3, uint32_t millivolt4) {
 //
 //  // Format message millivol - supporte jusqu'a 4 milliards de volts
 //  // noPaquet - 2 bytes
@@ -195,4 +198,3 @@ bool MGProtocoleV7::transmettrePaquetLectureOneWire(uint16_t noPaquet, Fournisse
 //
 //  return transmettrePaquet();
 //}
-

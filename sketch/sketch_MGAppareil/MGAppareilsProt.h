@@ -9,12 +9,14 @@
 #define NO_PRESSURE 0xFF
 #define NO_HUMIDITY 0XFF
 
-#define PAYLOAD_TAILLE_SIMPLE 24
-#define PAYLOAD_TAILLE_DOUBLE 48
+#define PAYLOAD_TAILLE_SIMPLE 32
+
+#define LIMITE_RETRANSMISSION 200
 
 #define MSG_TYPE_REQUETE_DHCP 0x1
 #define MSG_TYPE_REPONSE_DHCP 0x2
 
+#define MSG_TYPE_PAQUET0 0x0
 #define MSG_TYPE_LECTURES_COMBINEES 0x101
 #define MSG_TYPE_LECTURE_TH 0x102
 #define MSG_TYPE_LECTURE_TP 0x103
@@ -54,18 +56,21 @@ class FournisseurLectureOneWire {
     virtual byte* data();  // byte[12]
 };
 
-class MGProtocoleV7 {
+class MGProtocoleV8 {
 
   public:
-    MGProtocoleV7(const byte* uuid, RF24Mesh* mesh) {
+    // MGProtocoleV7(const byte* uuid, RF24Mesh* mesh) {
+    MGProtocoleV8(const byte* uuid, RF24* radio, const byte* nodeId) {
       _uuid = uuid;
-      _mesh = mesh;
+      _nodeId = nodeId;
+      // _mesh = mesh;
+      _radio = radio;
     };
 
     byte lireReponseDhcp(byte* data);
 
     bool transmettreRequeteDhcp();
-    bool transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaquets, byte retries);
+    bool transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaquets);
 
     // Paquets classe SenseursPassifs
     bool transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLectureTH* fournisseur);
@@ -78,9 +83,11 @@ class MGProtocoleV7 {
 
   private:
     const byte* _uuid;
-    RF24Mesh* _mesh;
+    const byte* _nodeId;
+    // RF24Mesh* _mesh;
+    RF24* _radio;
     
-    byte _buffer[48]; // Supporte 2 * 24 bytes (taille du plus grand payload)
+    byte _buffer[32]; // 32 bytes, max pour RF24
 
     void ecrireUUID(byte* destination);
 
@@ -95,4 +102,3 @@ class MGProtocoleV7 {
 //
 // END OF FILE
 //
-

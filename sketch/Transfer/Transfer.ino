@@ -46,17 +46,17 @@ void setup(void) {
   radio.setDataRate(RF24_250KBPS);
   radio.setAutoAck(1);                     // Ensure autoACK is enabled
   radio.setRetries(15,1);                  // Optionally, increase the delay between retries & # of retries
-  radio.enableDynamicPayloads();
+  // radio.enableDynamicPayloads();
   
   radio.setCRCLength(RF24_CRC_16);          // Use 8-bit CRC for performance
 
-  radio.openWritingPipe(pipes[0]);
-  radio.openReadingPipe(1,pipes[1]);
-  radio.startListening();                  // Start listening
+  // radio.openWritingPipe(pipes[0]);
+  // radio.openReadingPipe(1,pipes[1]);
+  // radio.startListening();                  // Start listening
 
   radio.openWritingPipe(pipes[1]);
-  radio.openReadingPipe(1,pipes[0]);
-  radio.stopListening();
+  // radio.openReadingPipe(1,pipes[0]);
+  // radio.stopListening();
   
   radio.printDetails();                    // Dump the configuration of the rf unit for debugging
   
@@ -143,18 +143,19 @@ void loop(void){
 
   if ( Serial.available() )
   {
+    uint64_t vide = 0x0LL;
     char c = toupper(Serial.read());
     if ( c == 'T' && role == RX )
     {
       Serial.println(F("*** CHANGING TO TRANSMIT ROLE -- PRESS 'R' TO SWITCH BACK"));
       radio.openWritingPipe(pipes[1]);
-      radio.openReadingPipe(1,pipes[0]);
+      radio.openReadingPipe(1,vide);
       radio.stopListening();
       role = TX;                  // Become the primary transmitter (ping out)
     }
     else if ( c == 'R' && role == TX )
     {
-      radio.openWritingPipe(pipes[0]);
+      radio.openWritingPipe(vide);
       radio.openReadingPipe(1,pipes[1]); 
       radio.startListening();
       Serial.println(F("*** CHANGING TO RECEIVE ROLE -- PRESS 'T' TO SWITCH BACK"));

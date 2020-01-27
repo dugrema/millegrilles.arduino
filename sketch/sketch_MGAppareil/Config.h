@@ -1,7 +1,7 @@
 #ifndef MGCONFIG_config_h
 #define MGCONFIG_config_h
 
-#include <RF24Mesh.h>
+#include <RF24.h>
 
 // Contient des constantes pour tous les modules
 
@@ -17,14 +17,11 @@
 
 // Nouveau sketch
 
-// Prod
-#define CANAL_MESH 0x7d  // Prod
-#define RATE_MESH RF24_2MBPS
+#define DATA_RATE RF24_250KBPS
 
-// Test
-// #define CANAL_MESH 0x48  // Test
-// #define CANAL_MESH 0x65  // Dev
-// #define RATE_MESH RF24_250KBPS
+// #define RADIO_CANAL 0x5e  // Prod
+// #define RADIO_CANAL 0x1f  // Test
+#define RADIO_CANAL 0x0c  // Dev
 
 #define NODE_ID_DEFAULT 1
 #define PIN_LED 6
@@ -33,12 +30,11 @@
 // Configuration pour radio RF24
 #define RF24_CE_PIN 7
 #define RF24_CSN_PIN 8
-#define MESH_RENEW_TIMEOUT 8000
 
 // Version du protocole de transmission NRF24
-#define VERSION_PROTOCOLE 7
+#define VERSION_PROTOCOLE 8
 
-#define MESH_MASTER_ID 0    
+#define SERVER_ADDR 0x3141CA49CALL
 
 // Power
 #define CYCLES_SOMMEIL 5
@@ -54,4 +50,3 @@
 //
 // END OF FILE
 //
-
