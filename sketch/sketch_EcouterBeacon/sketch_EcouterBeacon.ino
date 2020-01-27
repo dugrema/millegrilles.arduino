@@ -5,6 +5,8 @@
 #define BUFFER_SIZE 32
 
 uint64_t addr_broadcast = 0x290E92548BLL;
+byte data[32];
+byte addrServeur[5];
 
 RF24 radio(7,8);                           // Set up nRF24L01 radio on SPI bus plus pins 7 & 8
 
@@ -15,7 +17,7 @@ void setup(void) {
 
   radio.begin();                           // Setup and configure rf radio
   radio.setChannel(0x24);
-  radio.setPALevel(RF24_PA_MAX);           // If you want to save power use "RF24_PA_MIN" but keep in mind that reduces the module's range
+  radio.setPALevel(RF24_PA_LOW);           // If you want to save power use "RF24_PA_MIN" but keep in mind that reduces the module's range
 //  radio.setDataRate(RF24_1MBPS);
   radio.setDataRate(RF24_250KBPS);
   radio.setAutoAck(1);                     // Ensure autoACK is enabled
@@ -35,8 +37,8 @@ void setup(void) {
 }
 
 void loop() {
-   byte data[32];
-   while(radio.available()){       
+  
+   while(radio.available()){
     radio.read(&data,32);
     Serial.print(F("Recu V"));
     Serial.print(data[0]);
@@ -45,9 +47,31 @@ void loop() {
       printHex(data[i]);
     }
     Serial.println("");
-    
-   }
 
+   for(byte i=0; i<3; i++) {
+    addrServeur[i] = data[1+i];
+   }
+   addrServeur[3] = 0;
+   addrServeur[4] = 0;
+
+   bool transmisOk = false;
+   radio.openWritingPipe(addrServeur);
+   radio.stopListening();
+
+   byte i=0;
+   for(i=0; i<5; i++) {
+    transmisOk = radio.write(&data, 32);
+    if(transmisOk) break;
+   }
+   radio.startListening();
+
+   Serial.print("Transmis paquet, reussi: ");
+   Serial.print(transmisOk);
+   Serial.print(" apres nb essais: ");
+   Serial.println(i);
+
+   }
+   
 }
 
 void printHex(byte val) {
