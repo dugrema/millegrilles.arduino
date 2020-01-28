@@ -1,6 +1,6 @@
 #!/bin/bash
-
-AVR_PATH=/usr/share/arduino-1.8.5/hardware/tools/avr
+AVR_PATH=/opt/arduino-1.8.10/hardware/tools/avr
+# AVR_PATH=/usr/share/arduino-1.8.5/hardware/tools/avr
 AVRDUDE=$AVR_PATH/bin/avrdude
 AVR_CONF=$AVR_PATH/etc/avrdude.conf
 FILE=$2
