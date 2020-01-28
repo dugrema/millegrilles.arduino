@@ -67,7 +67,8 @@ class MGProtocoleV8 {
       _radio = radio;
     };
 
-    byte lireReponseDhcp(byte* data);
+    void lireBeaconDhcp(byte* data, byte* adresseServeur);
+    byte lireReponseDhcp(byte* data, byte* adresseNoeud);
 
     bool transmettreRequeteDhcp();
     bool transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaquets);

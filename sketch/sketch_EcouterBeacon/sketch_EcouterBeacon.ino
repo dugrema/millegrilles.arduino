@@ -5,6 +5,7 @@
 #define BUFFER_SIZE 32
 
 uint64_t addr_broadcast = 0x290E92548BLL;
+// uint64_t addr_broadcast = 0x1cf12cLL;
 byte data[32];
 byte addrServeur[5];
 
@@ -49,10 +50,12 @@ void loop() {
     Serial.println("");
 
    for(byte i=0; i<3; i++) {
-    addrServeur[i] = data[1+i];
+    addrServeur[i+2] = data[i+1];
    }
-   addrServeur[3] = 0;
-   addrServeur[4] = 0;
+   addrServeur[0] = 0;
+   addrServeur[1] = 0;
+
+   // radio.printDetails();
 
    bool transmisOk = false;
    radio.openWritingPipe(addrServeur);

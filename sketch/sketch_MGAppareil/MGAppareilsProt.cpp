@@ -1,8 +1,24 @@
 #include "MGAppareilsProt.h"
 #include <Arduino.h>
 
-byte MGProtocoleV8::lireReponseDhcp(byte* data) {
-  byte nodeId_reserve = data[3];
+void MGProtocoleV8::lireBeaconDhcp(byte* data, byte* adresseServeur) {
+
+  // Init 2 premiers bytes a 0 (serveur a une adresse de 24 bits)
+  adresseServeur[0] = 0;
+  adresseServeur[1] = 0;
+
+  // Copier 3 bytes reseau
+  for(byte i=0; i<3; i++) {
+    adresseServeur[i+2] = data[i+1];
+  }
+  
+}
+
+byte MGProtocoleV8::lireReponseDhcp(byte* data, byte* adresseNoeud) {
+  // Copier l'adresse recue dans le buffer addresseNoeud
+  // L'adresse est dans les bytes [3:7], le premier byte est le nodeId
+  memcpy(adresseNoeud, data + 3, 5);
+  byte nodeId_reserve = adresseNoeud[0];
   return nodeId_reserve;
 }
 
@@ -53,9 +69,8 @@ bool MGProtocoleV8::transmettreRequeteDhcp() {
     uint16_t typeMessage = MSG_TYPE_REQUETE_DHCP;
     
     _buffer[0] = VERSION_PROTOCOLE;
-    _buffer[1] = _nodeId[0];
-    memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
-    ecrireUUID(_buffer + 4);
+    memcpy(_buffer + 1, &typeMessage, sizeof(typeMessage));
+    ecrireUUID(_buffer + 3);
 
     bool transmissionOk = false;
     byte compteurTransmissions = 0;
