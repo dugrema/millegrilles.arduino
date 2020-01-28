@@ -177,9 +177,9 @@ void loop() {
   } 
 
   // Lecture reseau
-  ecouterReseau();
+  bool bypassSleep = !ecouterReseau();
 
-  if(!power.isAlimentationSecteur()) {
+  if(!bypassSleep && !power.isAlimentationSecteur()) {
     // Attendre la prochaine lecture
     attendreProchaineLecture();
 
@@ -262,12 +262,14 @@ bool ecouterReseau() {
 
   // Section lecture transmissions du reseau
   long timer = millis();
-  uint16_t attente = 500;  // 500ms sur batterie
+  uint16_t attente = 100;  // 100ms sur batterie
   if(power.isAlimentationSecteur()) {
     // Mode alimentation secteur
     // On reste en ecoute durant l'equivalent du mode sleep.
-//    attente = 8000 * CYCLES_SOMMEIL;
-    attente = 4000;
+    attente = 8000 * CYCLES_SOMMEIL;
+  } else if(doitVerifierAdresseDhcp) {
+    // On est sur batterie mais on doit attendre beacon DHCP
+    attente = 20000;  // Donner 20 s pour ecouter beacon
   }
 
   Serial.println(F("Lecture reseau"));
@@ -282,7 +284,9 @@ bool ecouterReseau() {
     
     analogWrite(PIN_LED, pinOutput);
     
-    networkProcess();
+    if(!networkProcess()) {
+      return false; // Indique qu'on veut recommencer la loop, transmettre lecture
+    }
     
   }
   Serial.println(F("Fin lecture reseau"));
@@ -362,6 +366,7 @@ bool networkProcess() {
             radio.printDetails();
 
             Serial.println(F("Senseur pret a transmettre"));
+            return false;  // Va indiquer qu'on veut transmettre immediatement
         }
         break;
       default:
