@@ -109,7 +109,7 @@ void setup() {
 
   Serial.println(F("Setup radio"));
   radio.begin();
-  radio.setChannel(0x24);
+  radio.setChannel(RADIO_CANAL);
   // radio.enableDynamicPayloads();
   radio.setAutoAck(true);
   radio.setRetries(15, 1);
