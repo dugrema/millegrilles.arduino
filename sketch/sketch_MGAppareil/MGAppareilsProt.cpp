@@ -9,7 +9,7 @@ void MGProtocoleV8::lireBeaconDhcp(byte* data, byte* adresseServeur) {
 
   // Copier 3 bytes reseau
   for(byte i=0; i<3; i++) {
-    adresseServeur[i+2] = data[i+1];
+    adresseServeur[i+2] = data[i+3];
   }
   
 }
@@ -63,7 +63,7 @@ bool MGProtocoleV8::transmettreRequeteDhcp() {
 
     // Format message :
     // Version - 1 byte
-    // Node ID - 1 byte
+    // Node ID - 1 byte (placeholder)
     // TYPE MESSAGE - 2 bytes
     // Nombre paquets - 2 bytes
     // UUID - 16 bytes
@@ -71,8 +71,9 @@ bool MGProtocoleV8::transmettreRequeteDhcp() {
     uint16_t typeMessage = MSG_TYPE_REQUETE_DHCP;
     
     _buffer[0] = VERSION_PROTOCOLE;
-    memcpy(_buffer + 1, &typeMessage, sizeof(typeMessage));
-    ecrireUUID(_buffer + 3);
+    _buffer[1] = 0;  // Blank, nodeId n'est pas connu
+    memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
+    ecrireUUID(_buffer + 4);
 
     bool transmissionOk = false;
     byte compteurTransmissions = 0;

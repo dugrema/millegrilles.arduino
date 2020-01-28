@@ -208,6 +208,7 @@ bool transmettrePaquets() {
 
   // Debut de la transmission
   transmissionOk = prot8.transmettrePaquet0(MSG_TYPE_LECTURES_COMBINEES, nombrePaquets);
+  if(!transmissionOk) return false;
 
   byte compteurPaquet = 1;  // Fourni le numero du paquet courant
 
@@ -307,66 +308,67 @@ bool networkProcess() {
 
     // S'assurer que le paquet est de la bonne version
     if(data[0] == VERSION_PROTOCOLE) {
-      if(ecouterBeacon) {
-        byte adresseServeur[5];
-        prot8.lireBeaconDhcp((byte*)&data, (byte*)&adresseServeur);
-        adresseServeur[0] = 0; adresseServeur[1] = 0;
-        
-        // Transmettre demande adresse au serveur
-        Serial.print(F("Adresse serveur "));
-        for(byte h=0; h<5; h++){
-          // printHex(adresseServeur[h]);
-        }
-        Serial.println("");
+      uint16_t typeMessage = data[1];
+      
+      // memcpy(&typeMessage, (&data)+1, 2); // Lire les bytes [1:2], type message
 
-        radio.openWritingPipe(adresseServeur);
-        radio.printDetails();
-        radio.stopListening();
-        bool transmisOk = prot8.transmettreRequeteDhcp();
-        radio.startListening();
-        ecouterBeacon = false;
-        
-        if(transmisOk) {
-          Serial.println(F("Requete DHCP transmise"));
-        } else {
-          Serial.println(F("Requete DHCP echec"));
-        }
-        
-      } else {
-        uint16_t typeMessage = data[1];
-        
-        // memcpy(&typeMessage, (&data)+1, 2); // Lire les bytes [1:2], type message
-
-        switch(typeMessage) {
-        case MSG_TYPE_REPONSE_DHCP:
-          nodeIdReserve = prot8.lireReponseDhcp((byte*)&data, (byte*)&adresseNoeud);
-          Serial.print(F("Node ID Reserve: "));
-          Serial.println(nodeIdReserve);
-
-          if(nodeIdReserve) {
-              nodeId = nodeIdReserve;  // Modification du node Id interne
-              doitVerifierAdresseDhcp = false;
-              // Changement de nodeId
-              Serial.print(F("Adresse reseau "));
-              printArray(adresseNoeud, 5);
-              Serial.println();
-              
-              // Ajuster l'adresse reseau
-              radio.openReadingPipe(1, adresseNoeud);
-
-              // Ajouter adresse ecoute broadcast (nodeId = 0xff)
-              adresseNoeud[0] = 0xff;
-              radio.openReadingPipe(2, adresseNoeud);
-              radio.printDetails();
-
-              Serial.println(F("Senseur pret a transmettre"));
+      switch(typeMessage) {
+      case MSG_TYPE_BEACON_DHCP:
+        if(doitVerifierAdresseDhcp) {
+          byte adresseServeur[5];
+          prot8.lireBeaconDhcp((byte*)&data, (byte*)&adresseServeur);
+          adresseServeur[0] = 0; adresseServeur[1] = 0;
+          
+          // Transmettre demande adresse au serveur
+          Serial.print(F("Adresse serveur "));
+          for(byte h=0; h<5; h++){
+            // printHex(adresseServeur[h]);
           }
-          break;
-        default:
-          Serial.print(F("Type message inconnu: "));
-          Serial.println(typeMessage);
+          Serial.println("");
+  
+          radio.openWritingPipe(adresseServeur);
+          radio.printDetails();
+          radio.stopListening();
+          bool transmisOk = prot8.transmettreRequeteDhcp();
+          radio.startListening();
+          ecouterBeacon = false;
+          
+          if(transmisOk) {
+            Serial.println(F("Requete DHCP transmise"));
+          } else {
+            Serial.println(F("Requete DHCP echec"));
+          }
         }
+        break;
+      case MSG_TYPE_REPONSE_DHCP:
+        nodeIdReserve = prot8.lireReponseDhcp((byte*)&data, (byte*)&adresseNoeud);
+        Serial.print(F("Node ID Reserve: "));
+        Serial.println(nodeIdReserve);
+
+        if(nodeIdReserve) {
+            nodeId = nodeIdReserve;  // Modification du node Id interne
+            doitVerifierAdresseDhcp = false;
+            // Changement de nodeId
+            Serial.print(F("Adresse reseau "));
+            printArray(adresseNoeud, 5);
+            Serial.println();
+            
+            // Ajuster l'adresse reseau
+            radio.openReadingPipe(1, adresseNoeud);
+
+            // Ajouter adresse ecoute broadcast (nodeId = 0xff)
+            adresseNoeud[0] = 0xff;
+            radio.openReadingPipe(2, adresseNoeud);
+            radio.printDetails();
+
+            Serial.println(F("Senseur pret a transmettre"));
+        }
+        break;
+      default:
+        Serial.print(F("Type message inconnu: "));
+        Serial.println(typeMessage);
       }
+
     }
   }
   return true;
