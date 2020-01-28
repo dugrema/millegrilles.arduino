@@ -51,8 +51,6 @@ byte uuid[16];
 
 // Radio nRF24L01 sur pins CE=7, CSN=8
 RF24 radio(RF24_CE_PIN, RF24_CSN_PIN);
-// RF24Network network(radio);
-// RF24Mesh mesh(radio,network);
 
 byte nodeId = NODE_ID_DEFAULT;
 
@@ -156,19 +154,9 @@ void loop() {
 
   power.lireVoltageBatterie();
 
-  // S'assurer que DHCP a ete execute correctement par networkMaintenance()
-  if( ecouterBeacon ) {
-    // Rien a faire
-  } else if(doitVerifierAdresseDhcp) {
-    radio.stopListening();
-    bool transmissionOk = prot8.transmettreRequeteDhcp();
-    if(transmissionOk) {
-      Serial.println(F("Transmission DHCP ok"));
-    } else {
-      Serial.println(F("Transmission DHCP echec"));
-    }
-    radio.startListening();
-  } else {
+  // S'assurer que DHCP a ete execute correctement avant de transmettre
+  if( ! doitVerifierAdresseDhcp ) {
+
     // Effectuer lectures
     #if defined(DHTPIN) && defined(DHTTYPE)
       dht.lire();
@@ -183,10 +171,12 @@ void loop() {
     
     // Transmettre information du senseur
     bool erreurTransmission = ! transmettrePaquets();
+    Serial.print(F("Transmission lectures, erreur: "));
+    Serial.println(erreurTransmission);
   
-    // Lecture reseau
   } 
 
+  // Lecture reseau
   ecouterReseau();
 
   if(!power.isAlimentationSecteur()) {
@@ -245,12 +235,12 @@ bool transmettrePaquets() {
   return transmissionOk;
 }
 
-// Entretien reseau. Retourne false si le reseau est en erreur.
+// Entretien reseau.
 bool networkMaintenance() {
 
   if(radio.failureDetected) {
-    Serial.print(F("Hardware failure detected "));
-    Serial.println(radio.failureDetected);
+    Serial.println(F("Hardware failure detected"));
+//    Serial.println(radio.failureDetected);
     radio.failureDetected = 0; // Reset flag
   }
 
@@ -282,7 +272,7 @@ bool ecouterReseau() {
   Serial.println(F("Lecture reseau"));
   while(millis() - timer < attente) {
     if(pintThrottle++ == 4) {
-      pintThrottle = 0;
+      pintThrottle = 5;
       if(directionPin) pinOutput++;
       else pinOutput--;
       if(pinOutput == 20) directionPin = true;
@@ -290,12 +280,8 @@ bool ecouterReseau() {
     }
     
     analogWrite(PIN_LED, pinOutput);
-    // mesh.update();
     
     networkProcess();
-//    if(!resultatLecture) {
-//      return false;
-//    }
     
   }
   Serial.println(F("Fin lecture reseau"));
@@ -368,7 +354,7 @@ bool networkProcess() {
               // Ajuster l'adresse reseau
               radio.openReadingPipe(1, adresseNoeud);
 
-              // Ajouter adresse ecoute broadcast
+              // Ajouter adresse ecoute broadcast (nodeId = 0xff)
               adresseNoeud[0] = 0xff;
               radio.openReadingPipe(2, adresseNoeud);
               radio.printDetails();
@@ -381,32 +367,6 @@ bool networkProcess() {
           Serial.println(typeMessage);
         }
       }
-
-//    switch(header.type){
-//      // Display the incoming millis() values from the sensor nodes
-//      case 'd': // Reponse DHCP
-//        network.read(header,&dat,sizeof(dat));
-//        nodeIdReserve = prot7.lireReponseDhcp((byte*)&dat);
-//        if(nodeIdReserve > 1) {
-//          nodeId = nodeIdReserve;  // Modification du node Id interne
-////          mesh.setNodeID(nodeIdReserve);
-////          EEPROM.update(ADDRESS_SENSEUR, nodeId);
-////          mesh.renewAddress(1000);
-//          doitVerifierAdresseDhcp = false;
-//
-//          // Changement de nodeId
-//          Serial.print(F("Nouveau node id recu de DHCP: "));
-//          Serial.println(nodeIdReserve);
-//        }
-//        break;
-//      default: network.read(header,0,0); Serial.println(header.type);break;
-
-//    }
-//  } else {
-//    erreurMesh = ! mesh.checkConnection();
-//    if( erreurMesh ) {
-//      return false;  // Arrete traitement, va reconnecter et recommencer dans loop
-//    }
     }
   }
   return true;
@@ -435,12 +395,12 @@ void chargerConfiguration() {
 
   // configuration.lire_configuration();
   
-  EEPROM.get(ADDRESS_SENSEUR, nodeId);
+  // EEPROM.get(ADDRESS_SENSEUR, nodeId);  // NodeId n'est plus important, c'est le serveur DHCP qui l'assigne
   EEPROM.get(ADDRESS_UUID, uuid);
   // EEPROM.get(ADDRESS_BATT_PIN, battery_pin);  
 
-  Serial.print(F("NodeID senseur "));
-  Serial.println(nodeId);
+//  Serial.print(F("NodeID senseur "));
+//  Serial.println(nodeId);
   Serial.print(F("UUID senseur "));
   printArray(uuid, 16);
 }

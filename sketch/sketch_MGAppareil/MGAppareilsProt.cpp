@@ -49,9 +49,11 @@ bool MGProtocoleV8::transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaqu
 
     bool transmissionOk = false;
     byte compteurTransmissions = 0;
+    _radio->stopListening();
     while(!transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
       transmissionOk = _radio->write(_buffer, PAYLOAD_TAILLE_SIMPLE);
     }
+    _radio->startListening();
 
     return transmissionOk;
 }
@@ -74,9 +76,11 @@ bool MGProtocoleV8::transmettreRequeteDhcp() {
 
     bool transmissionOk = false;
     byte compteurTransmissions = 0;
+    _radio->stopListening();
     while(!transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
       transmissionOk = _radio->write(_buffer, PAYLOAD_TAILLE_SIMPLE);
     }
+    _radio->startListening();
 
     return transmissionOk;
 }
@@ -85,9 +89,11 @@ bool MGProtocoleV8::transmettrePaquet(byte taillePayload) {
   bool transmissionOk = false;
   byte compteurTransmissions = 0;
   
+  _radio->stopListening();
   while(!transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
     transmissionOk = _radio->write(_buffer, taillePayload);
   }
+  _radio->startListening();
   
   return transmissionOk;
 }
