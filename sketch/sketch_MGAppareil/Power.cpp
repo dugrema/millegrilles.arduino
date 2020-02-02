@@ -46,13 +46,13 @@ void ArduinoPower::lireVoltageBatterie() {
   _calculerReservePct();
 }
 
-void ArduinoPower::deepSleep() {
-    // set_sleep_mode(SLEEP_MODE_ADC);
+void ArduinoPower::deepSleep(bool* wakeUp) {
+  // set_sleep_mode(SLEEP_MODE_ADC);
   // Le power saving est maximal - le premier byte sur le UART est perdu
   // set_sleep_mode(SLEEP_MODE_PWR_SAVE);
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 
-  while( _current_sleep_count++ < _sleep_cycles ) {
+  while( _current_sleep_count++ < _sleep_cycles && !*wakeUp) {
     sleep_enable();
 
     /* Now enter sleep mode. */
@@ -175,6 +175,3 @@ byte ArduinoPower::alerte() {
 
   return alerte;
 }
-
-
-

@@ -6,9 +6,6 @@
 
 #include <SPI.h>
 #include <RF24.h>
-// #include <RF24Network.h>
-// #include <RF24Mesh_config.h>
-// #include <RF24Mesh.h>
 
 #include <printf.h>
 
@@ -19,7 +16,6 @@
 
 // UUID, va etre charge a partir de la memoire EEPROM
 byte uuid[16];
-// byte receivingPipe[5] = BROADCAST_DHCP_LISTEN;  // Addresse initiale pour recevoir beacon du serveur
 
 // *****************
 // Senseurs
@@ -51,6 +47,8 @@ byte uuid[16];
 
 // Radio nRF24L01 sur pins CE=7, CSN=8
 RF24 radio(RF24_CE_PIN, RF24_CSN_PIN);
+byte data[32];  // Data buffer pour reception/emission RF24
+volatile bool messageRecu = false;
 
 byte nodeId = NODE_ID_DEFAULT;
 
@@ -59,11 +57,9 @@ bool doitVerifierAdresseDhcp = true;
 bool ecouterBeacon = true;
 
 // Flag qui indique un echec de transmission
-// bool erreurMesh = false;
 bool transmissionOk = false;
 
 // Helper conversion de donnees avec protocole Version 7
-// MGProtocoleV7 prot7(uuid, &mesh);
 MGProtocoleV8 prot8(uuid, &radio, &nodeId);
 
 // Power management
@@ -125,6 +121,8 @@ void setup() {
   Serial.print(F("Ouverture radio"));
   radio.printDetails();
   radio.startListening();
+  radio.maskIRQ(true, true, false); // Masquer TX OK et fail sur IRQ, juste garder payload ready
+  attachInterrupt(digitalPinToInterrupt(3), checkRadio, FALLING);
 
   Serial.println(F("Radio initialisee, ecoute beacon DHCP"));
 
@@ -149,13 +147,11 @@ void setup() {
 
 void loop() {
 
-  // Lecture reseau, ecouter avant de transmettre
-  networkMaintenance();
-
   power.lireVoltageBatterie();
 
   // S'assurer que DHCP a ete execute correctement avant de transmettre
-  if( ! doitVerifierAdresseDhcp ) {
+  // On n'effectue pas de lecture sur reception de commande
+  if( ! doitVerifierAdresseDhcp && ! messageRecu ) {
 
     // Effectuer lectures
     #if defined(DHTPIN) && defined(DHTTYPE)
@@ -179,7 +175,8 @@ void loop() {
   // Lecture reseau
   bool bypassSleep = !ecouterReseau();
 
-  if(!bypassSleep && !power.isAlimentationSecteur()) {
+  // if(!bypassSleep && !power.isAlimentationSecteur()) {
+  if(!bypassSleep) {
     // Attendre la prochaine lecture
     attendreProchaineLecture();
 
@@ -236,24 +233,6 @@ bool transmettrePaquets() {
   return transmissionOk;
 }
 
-// Entretien reseau.
-bool networkMaintenance() {
-
-  if(radio.failureDetected) {
-    Serial.println(F("Hardware failure detected"));
-//    Serial.println(radio.failureDetected);
-    radio.failureDetected = 0; // Reset flag
-  }
-
-  // Section DHCP
-//  if(doitVerifierAdresseDhcp) {
-//    // Le senseur vient d'etre initialise, il faut demander un nouveau nodeId au serveur
-//    prot8.transmettreRequeteDhcp();
-//    Serial.println(F("Requete DHCP transmise"));
-//  }
-
-}
-
 bool ecouterReseau() {
 
   byte pinOutput = 200;
@@ -262,15 +241,12 @@ bool ecouterReseau() {
 
   // Section lecture transmissions du reseau
   long timer = millis();
-  uint16_t attente = 100;  // 100ms sur batterie
-  if(power.isAlimentationSecteur()) {
-    // Mode alimentation secteur
-    // On reste en ecoute durant l'equivalent du mode sleep.
-    attente = 8000 * CYCLES_SOMMEIL;
-  } else if(doitVerifierAdresseDhcp) {
-    // On est sur batterie mais on doit attendre beacon DHCP
-    attente = 20000;  // Donner 20 s pour ecouter beacon
-  }
+  uint16_t attente = 5;  // 5ms sur batterie
+//  if(power.isAlimentationSecteur()) {
+//    // Mode alimentation secteur
+//    // On reste en ecoute durant l'equivalent du mode sleep.
+//    attente = 8000 * CYCLES_SOMMEIL;
+//  }
 
   Serial.println(F("Lecture reseau"));
   while(millis() - timer < attente) {
@@ -298,11 +274,9 @@ bool ecouterReseau() {
 bool networkProcess() {
 
   while(radio.available()){
+    messageRecu = false;
 
-    byte data[32];
     radio.read(&data, 32);
-    byte nodeIdReserve=0;
-    byte adresseNoeud[5];  // 4 premiers bytes = reseau, 5e est nodeId
 
     Serial.print(F("Recu message "));
     for(byte i=0; i<32; i++){
@@ -316,83 +290,41 @@ bool networkProcess() {
       
       // memcpy(&typeMessage, (&data)+1, 2); // Lire les bytes [1:2], type message
 
-      switch(typeMessage) {
-      case MSG_TYPE_BEACON_DHCP:
-        if(doitVerifierAdresseDhcp) {
-          byte adresseServeur[5];
-          prot8.lireBeaconDhcp((byte*)&data, (byte*)&adresseServeur);
-          adresseServeur[0] = 0; adresseServeur[1] = 0;
-          
-          // Transmettre demande adresse au serveur
-          Serial.print(F("Adresse serveur "));
-          for(byte h=0; h<5; h++){
-            // printHex(adresseServeur[h]);
-          }
-          Serial.println("");
-  
-          radio.openWritingPipe(adresseServeur);
-          radio.printDetails();
-          radio.stopListening();
-          bool transmisOk = prot8.transmettreRequeteDhcp();
-          radio.startListening();
-          ecouterBeacon = false;
-          
-          if(transmisOk) {
-            Serial.println(F("Requete DHCP transmise"));
-          } else {
-            Serial.println(F("Requete DHCP echec"));
-          }
+      if(doitVerifierAdresseDhcp) {
+        if(!assignerAdresseDHCPRecue()) {
+          return false;
         }
-        break;
-      case MSG_TYPE_REPONSE_DHCP:
-        nodeIdReserve = prot8.lireReponseDhcp((byte*)&data, (byte*)&adresseNoeud);
-        Serial.print(F("Node ID Reserve: "));
-        Serial.println(nodeIdReserve);
-
-        if(nodeIdReserve) {
-            nodeId = nodeIdReserve;  // Modification du node Id interne
-            doitVerifierAdresseDhcp = false;
-            // Changement de nodeId
-            Serial.print(F("Adresse reseau "));
-            printArray(adresseNoeud, 5);
-            Serial.println();
-            
-            // Ajuster l'adresse reseau
-            radio.openReadingPipe(1, adresseNoeud);
-
-            // Ajouter adresse ecoute broadcast (nodeId = 0xff)
-            adresseNoeud[0] = 0xff;
-            radio.openReadingPipe(2, adresseNoeud);
-            radio.printDetails();
-
-            Serial.println(F("Senseur pret a transmettre"));
-            return false;  // Va indiquer qu'on veut transmettre immediatement
-        }
-        break;
-      default:
-        Serial.print(F("Type message inconnu: "));
+      } else {
+        Serial.print(F("Message non gere, type"));
         Serial.println(typeMessage);
       }
 
     }
   }
+  messageRecu = false;
+  
   return true;
   
 }
 
 void attendreProchaineLecture() {
 
+  if(messageRecu) return;  // Abort du sleep
+
   Serial.println(F("Sleep"));
-  delay(20); // Finir transmettre Serial
+  delay(10); // Finir transmettre Serial, radio (5ms min)
   
   // Power down the radio.  Note that the radio will get powered back up
   // on the next write() call.
-  radio.powerDown();
+  if( ! doitVerifierAdresseDhcp ) {
+    radio.powerDown();
+  }
 
   digitalWrite(PIN_LED, LOW);
-  power.deepSleep();
+  power.deepSleep(&messageRecu);
   digitalWrite(PIN_LED, HIGH);
 
+  radio.setPALevel(RF24_PA_LOW);
   radio.powerUp();
   radio.startListening();
 
@@ -410,6 +342,75 @@ void chargerConfiguration() {
 //  Serial.println(nodeId);
   Serial.print(F("UUID senseur "));
   printArray(uuid, 16);
+}
+
+void checkRadio(void) {
+  // Serial.println(F("Message recu IRQ"));
+  messageRecu = true;
+}
+
+bool assignerAdresseDHCPRecue() {
+  uint16_t typeMessage = data[1];
+  byte adresseNoeud[5];  // 4 premiers bytes = reseau, 5e est nodeId
+  byte nodeIdReserve=0;
+
+  Serial.print(F("Type message "));
+  Serial.println(typeMessage);
+  
+  if(typeMessage == MSG_TYPE_BEACON_DHCP) {
+    byte adresseServeur[5];
+    prot8.lireBeaconDhcp((byte*)&data, (byte*)&adresseServeur);
+    adresseServeur[0] = 0; adresseServeur[1] = 0;
+    
+    // Transmettre demande adresse au serveur
+    Serial.print(F("Adresse serveur "));
+    for(byte h=0; h<5; h++){
+      printHex(adresseServeur[h]);
+    }
+    Serial.println("");
+
+    radio.openWritingPipe(adresseServeur);
+    radio.printDetails();
+    radio.stopListening();
+    bool transmisOk = prot8.transmettreRequeteDhcp();
+    radio.startListening();
+    ecouterBeacon = false;
+    
+    if(transmisOk) {
+      Serial.println(F("Requete DHCP transmise"));
+    } else {
+      Serial.println(F("Requete DHCP echec"));
+    }
+  } else if(typeMessage == MSG_TYPE_REPONSE_DHCP) {
+    Serial.print(F("Node ID Reserve: "));
+    nodeIdReserve = prot8.lireReponseDhcp((byte*)&data, (byte*)&adresseNoeud);
+    Serial.println(nodeIdReserve);
+
+    if(nodeIdReserve) {
+      nodeId = nodeIdReserve;  // Modification du node Id interne
+      doitVerifierAdresseDhcp = false;
+      // Changement de nodeId
+      Serial.print(F("Adresse reseau "));
+      printArray(adresseNoeud, 5);
+      Serial.println();
+      
+      // Ajuster l'adresse reseau
+      radio.openReadingPipe(1, adresseNoeud);
+
+      // Ajouter adresse ecoute broadcast (nodeId = 0xff)
+      adresseNoeud[0] = 0xff;
+      radio.openReadingPipe(2, adresseNoeud);
+      radio.printDetails();
+
+      Serial.println(F("Senseur pret a transmettre"));
+      return false;  // Va indiquer qu'on veut transmettre immediatement
+    }
+  } else {
+    Serial.print(F("Type message inconnu: "));
+    Serial.println(typeMessage);
+  }
+
+  return true;
 }
 
 void printArray(byte* liste, int len) {
