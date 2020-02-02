@@ -46,6 +46,25 @@ void ArduinoPower::lireVoltageBatterie() {
   _calculerReservePct();
 }
 
+void ArduinoPower::singleCycleSleep() {
+  // set_sleep_mode(SLEEP_MODE_ADC);
+  // Le power saving est maximal - le premier byte sur le UART est perdu
+  // set_sleep_mode(SLEEP_MODE_PWR_SAVE);
+
+  _current_sleep_count++;  // Compter nombre de cycles de sleep
+
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  sleep_enable();
+  sleep_mode();
+      
+  /* The program will continue from here after the WDT timeout*/
+  sleep_disable(); /* First thing to do is disable sleep. */
+      
+  /* Re-enable the peripherals. */
+  power_all_enable();
+
+}
+
 void ArduinoPower::deepSleep(bool* wakeUp) {
   // set_sleep_mode(SLEEP_MODE_ADC);
   // Le power saving est maximal - le premier byte sur le UART est perdu

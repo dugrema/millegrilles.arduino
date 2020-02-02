@@ -19,9 +19,9 @@
 
 #define DATA_RATE RF24_250KBPS
 
-// #define RADIO_CANAL 0x5e  // Prod
+#define RADIO_CANAL 0x5e  // Prod
 // #define RADIO_CANAL 0x1f  // Test
-#define RADIO_CANAL 0x0c  // Dev
+// #define RADIO_CANAL 0x0c  // Dev
 
 #define NODE_ID_DEFAULT 1
 #define PIN_LED 6

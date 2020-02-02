@@ -46,6 +46,7 @@
 class ArduinoPower : public FournisseurLecturePower
 {
   public:
+    void singleCycleSleep();
     void deepSleep(bool* wakeUp);
     void lireVoltageBatterie();
     uint32_t millivolt();

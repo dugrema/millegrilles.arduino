@@ -175,8 +175,8 @@ void loop() {
   // Lecture reseau
   bool bypassSleep = !ecouterReseau();
 
-  // if(!bypassSleep && !power.isAlimentationSecteur()) {
-  if(!bypassSleep) {
+  if(!bypassSleep && !power.isAlimentationSecteur()) {
+  // if(!bypassSleep) {
     // Attendre la prochaine lecture
     attendreProchaineLecture();
 
@@ -242,15 +242,17 @@ bool ecouterReseau() {
   // Section lecture transmissions du reseau
   long timer = millis();
   uint16_t attente = 5;  // 5ms sur batterie
-//  if(power.isAlimentationSecteur()) {
-//    // Mode alimentation secteur
-//    // On reste en ecoute durant l'equivalent du mode sleep.
-//    attente = 8000 * CYCLES_SOMMEIL;
-//  }
+  if(power.isAlimentationSecteur()) {
+    // Mode alimentation secteur
+    // On reste en ecoute durant l'equivalent du mode sleep.
+    attente = 8000 * CYCLES_SOMMEIL;
+  }
 
   Serial.println(F("Lecture reseau"));
   while(millis() - timer < attente) {
-    if(pintThrottle++ == 4) {
+    if(doitVerifierAdresseDhcp) {
+      pinOutput = 255;  // Max pour indiquer que le senseur n'est pas pret
+    } else if(pintThrottle++ == 4) {
       pintThrottle = 5;
       if(directionPin) pinOutput++;
       else pinOutput--;
@@ -314,12 +316,15 @@ void attendreProchaineLecture() {
   Serial.println(F("Sleep"));
   delay(10); // Finir transmettre Serial, radio (5ms min)
   
-  // Power down the radio.  Note that the radio will get powered back up
-  // on the next write() call.
-  if( ! doitVerifierAdresseDhcp ) {
-    radio.powerDown();
+  if( doitVerifierAdresseDhcp ) {
+    // Effectuer un seul cycle de sleep avec la radio ouverte
+    // Le IRQ reveille le controleur pour recevoir une commande
+    power.singleCycleSleep();
+    if(messageRecu) return;
   }
 
+  // Fermer la radio, entrer en deep sleep
+  radio.powerDown();
   digitalWrite(PIN_LED, LOW);
   power.deepSleep(&messageRecu);
   digitalWrite(PIN_LED, HIGH);
