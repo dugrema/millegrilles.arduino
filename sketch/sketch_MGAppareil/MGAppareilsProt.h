@@ -2,8 +2,15 @@
 #define mgAppareilsProt_config_h
 
 #include <Arduino.h>
-#include <RF24Mesh.h>
+// #include <RF24Mesh.h>
 #include "Config.h"
+
+// Cryptographie, utilise ISR(WDT_vect)
+#define WATCHDOG_INITD
+#include <Crypto.h>
+#include <CryptoLW.h>
+#include <EAX.h>
+#include <AES.h>
 
 #define NO_TEMP -32768
 #define NO_PRESSURE 0xFF

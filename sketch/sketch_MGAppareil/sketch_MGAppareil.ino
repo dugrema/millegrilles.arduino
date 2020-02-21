@@ -66,13 +66,17 @@ MGProtocoleV8 prot8(uuid, &radio, &nodeId);
 ArduinoPower power;
 volatile int f_wdt=1;
 
-ISR(WDT_vect)
-{
-  if(f_wdt == 0)
+// Conflit avec lib crypto.h, __vector_6 (wachdog) deja defini
+#ifndef WATCHDOG_INITD
+#define WATCHDOG_INITD
+  ISR(WDT_vect)
   {
-    f_wdt=1;
+    if(f_wdt == 0)
+    {
+      f_wdt=1;
+    }
   }
-}
+#endif
 
 // Setup initial
 void setup() {
@@ -145,44 +149,90 @@ void setup() {
   Serial.println(millis());
 }
 
-void loop() {
+bool lectureDue = true;
+bool bypassSleep = false;
+long derniereAction = 0;  // Utiliser pour derminer prochaine action (sleep ou lecture selon power mode)
+const long attenteAlimentationBatterie = 500; // 5;
+const long attenteAlimentationSecteur = 8000; // 8000 * CYCLES_SOMMEIL;
 
-  power.lireVoltageBatterie();
+void loop() {
 
   // S'assurer que DHCP a ete execute correctement avant de transmettre
   // On n'effectue pas de lecture sur reception de commande
-  if( ! doitVerifierAdresseDhcp && ! messageRecu ) {
+  if( lectureDue && ! messageRecu ) {
 
-    // Effectuer lectures
-    #if defined(DHTPIN) && defined(DHTTYPE)
-      dht.lire();
-    #endif
-    
-    #ifdef BUS_MODE_ONEWIRE
-      // Fait la recherche initiale sur le bus
-      oneWireHandler.lire();
-    #elif defined(BUS_MODE_I2C)
-      bmp.lire();
-    #endif
-    
-    // Transmettre information du senseur
-    bool erreurTransmission = ! transmettrePaquets();
-    Serial.print(F("Transmission lectures, erreur: "));
-    Serial.println(erreurTransmission);
+    // Serial.println(F("Debut traitement lecture"));
+
+    power.lireVoltageBatterie();
+
+    // S'assurer qu'on est en position de transmettre la lecture
+    if( ! doitVerifierAdresseDhcp ) {
+      digitalWrite(PIN_LED, HIGH);  
   
-  } 
+      // Effectuer lectures
+      #if defined(DHTPIN) && defined(DHTTYPE)
+        dht.lire();
+      #endif
+      
+      #ifdef BUS_MODE_ONEWIRE
+        // Fait la recherche initiale sur le bus
+        oneWireHandler.lire();
+      #elif defined(BUS_MODE_I2C)
+        bmp.lire();
+      #endif
+      
+      // Transmettre information du senseur
+      bool erreurTransmission = ! transmettrePaquets();
+      Serial.print(F("Transmission lectures, erreur: "));
+      Serial.println(erreurTransmission);
+    } 
 
-  // Lecture reseau
-  bool bypassSleep = !ecouterReseau();
+    // Cleanup flag lecture
+    lectureDue = false;
 
-  if(!bypassSleep && !power.isAlimentationSecteur()) {
-  // if(!bypassSleep) {
+    // Indique temps de la derniere action
+    derniereAction = millis();
+  }
+
+  // Ecouter reseau
+  bypassSleep = !ecouterReseau();
+
+  // Verifier si on peut entrer en mode sleep
+  if(power.isAlimentationSecteur()) {
+    // Comportement sur alimentation secteur
+    // On ne sleep jamais sur alimentation secteur
+    bypassSleep = true;
+
+    if(millis() - derniereAction > attenteAlimentationSecteur) {
+      // Declencher nouvelle lecture senseur (alimentation secteur)
+      lectureDue = true;
+      Serial.println(F("Mode secteur, lecture due"));
+    }
+    
+  } else {
+    // Comportement sur batterie
+    // Sur batterie, on agit immediatement si un message est Recu
+  
+    bypassSleep |= messageRecu;
+
+    if( ! bypassSleep && millis() - derniereAction < attenteAlimentationBatterie) {
+      // Attendre sleep
+      bypassSleep = true;
+    }
+    
+  }
+ 
+  if(!bypassSleep) {
     // Attendre la prochaine lecture
     attendreProchaineLecture();
 
     // Clear le flag du watchdog.
     f_wdt = 0;
-  } 
+
+    // Declencher nouvelle lecture senseur (batterie)
+    lectureDue = true;
+    Serial.println(F("Mode batterie, lecture due"));
+  }
 
 }
 
@@ -233,27 +283,27 @@ bool transmettrePaquets() {
   return transmissionOk;
 }
 
+byte pinOutput = 200;
+bool directionPin = false;
+byte pintThrottle = 0;
+
 bool ecouterReseau() {
 
-  byte pinOutput = 200;
-  byte pintThrottle = 0;
-  bool directionPin = false;
 
   // Section lecture transmissions du reseau
-  long timer = millis();
-  uint16_t attente = 5;  // 5ms sur batterie
-  if(power.isAlimentationSecteur()) {
-    // Mode alimentation secteur
-    // On reste en ecoute durant l'equivalent du mode sleep.
-    attente = 8000 * CYCLES_SOMMEIL;
-  }
+//  long timer = millis();
+//  uint16_t attente = 5;  // 5ms sur batterie
+//  if(power.isAlimentationSecteur()) {
+//    // Mode alimentation secteur
+//    // On reste en ecoute durant l'equivalent du mode sleep.
+//    attente = 8000 * CYCLES_SOMMEIL;
+//  }
 
-  Serial.println(F("Lecture reseau"));
-  while(millis() - timer < attente) {
+//  Serial.println(F("Lecture reseau"));
+//  while(millis() - timer < attente) {
     if(doitVerifierAdresseDhcp) {
       pinOutput = 255;  // Max pour indiquer que le senseur n'est pas pret
     } else if(pintThrottle++ == 4) {
-      pintThrottle = 5;
       if(directionPin) pinOutput++;
       else pinOutput--;
       if(pinOutput == 20) directionPin = true;
@@ -266,10 +316,10 @@ bool ecouterReseau() {
       return false; // Indique qu'on veut recommencer la loop, transmettre lecture
     }
     
-  }
-  Serial.println(F("Fin lecture reseau"));
+//  }
+//  Serial.println(F("Fin lecture reseau"));
 
-  digitalWrite(PIN_LED, HIGH);  
+  // digitalWrite(PIN_LED, HIGH);  
   return true;
 }
 
@@ -311,8 +361,6 @@ bool networkProcess() {
 
 void attendreProchaineLecture() {
 
-  if(messageRecu) return;  // Abort du sleep
-
   Serial.println(F("Sleep"));
   delay(10); // Finir transmettre Serial, radio (5ms min)
   
@@ -350,7 +398,7 @@ void chargerConfiguration() {
 }
 
 void checkRadio(void) {
-  // Serial.println(F("Message recu IRQ"));
+  Serial.println(F("Message recu IRQ"));
   messageRecu = true;
 }
 
