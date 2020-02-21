@@ -50,10 +50,10 @@ void ArduinoPower::singleCycleSleep() {
   // set_sleep_mode(SLEEP_MODE_ADC);
   // Le power saving est maximal - le premier byte sur le UART est perdu
   // set_sleep_mode(SLEEP_MODE_PWR_SAVE);
-
-  _current_sleep_count++;  // Compter nombre de cycles de sleep
+  _current_sleep_count = 1;  // Compter nombre de cycles de sleep
 
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  wdt_reset(); // Reset watchdog
   sleep_enable();
   sleep_mode();
       
@@ -71,9 +71,12 @@ void ArduinoPower::deepSleep(bool* wakeUp) {
   // set_sleep_mode(SLEEP_MODE_PWR_SAVE);
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 
-  while( _current_sleep_count++ < _sleep_cycles && !*wakeUp) {
-    sleep_enable();
+  wdt_reset(); // Reset watchdog
 
+  while( _current_sleep_count++ < _sleep_cycles) { // && !*wakeUp) {
+    // sleep_enable();
+    // wdt_reset(); // Reset watchdog
+    
     /* Now enter sleep mode. */
     sleep_mode();
   }

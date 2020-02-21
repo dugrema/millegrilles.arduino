@@ -93,19 +93,19 @@ void setup() {
     bmp.begin();
   #endif
 
-  // Ouverture de la radio, mesh configuration
-  if(nodeId == 0 || nodeId == NODE_ID_DEFAULT) {
-    nodeId = NODE_ID_DEFAULT;
-    // ID 0 est reserve au master
-    // Seeder avec le premier byte != 0 du UUID.
-    // Le serveur dhcp va decider si le noeud peut le garder.
-    for(byte i; i<sizeof(uuid); i++) {
-      if(uuid[i]) {
-        nodeId = uuid[i];
-        break;
-      }
-    }
-  }
+//  // Ouverture de la radio, mesh configuration
+//  if(nodeId == 0 || nodeId == NODE_ID_DEFAULT) {
+//    nodeId = NODE_ID_DEFAULT;
+//    // ID 0 est reserve au master
+//    // Seeder avec le premier byte != 0 du UUID.
+//    // Le serveur dhcp va decider si le noeud peut le garder.
+//    for(byte i; i<sizeof(uuid); i++) {
+//      if(uuid[i]) {
+//        nodeId = uuid[i];
+//        break;
+//      }
+//    }
+//  }
 
   Serial.println(F("Setup radio"));
   radio.begin();
@@ -120,7 +120,7 @@ void setup() {
 
   // Ouvrir reading pipe avec adresse reception beacon DHCP
   uint64_t addresseDhcp = BROADCAST_DHCP_LISTEN;
-  radio.openReadingPipe(1,addresseDhcp);
+  radio.openReadingPipe(1, addresseDhcp);
 
   Serial.print(F("Ouverture radio"));
   radio.printDetails();
@@ -152,8 +152,8 @@ void setup() {
 bool lectureDue = true;
 bool bypassSleep = false;
 long derniereAction = 0;  // Utiliser pour derminer prochaine action (sleep ou lecture selon power mode)
-const long attenteAlimentationBatterie = 500; // 5;
-const long attenteAlimentationSecteur = 8000; // 8000 * CYCLES_SOMMEIL;
+const long attenteAlimentationBatterie = 500L; // 5L;
+const long attenteAlimentationSecteur = 8000L * CYCLES_SOMMEIL;
 
 void loop() {
 
@@ -195,7 +195,9 @@ void loop() {
   }
 
   // Ecouter reseau
-  bypassSleep = !ecouterReseau();
+  ecouterReseau();
+
+  bypassSleep = false;
 
   // Verifier si on peut entrer en mode sleep
   if(power.isAlimentationSecteur()) {
@@ -213,7 +215,7 @@ void loop() {
     // Comportement sur batterie
     // Sur batterie, on agit immediatement si un message est Recu
   
-    bypassSleep |= messageRecu;
+    bypassSleep |= messageRecu || lectureDue;
 
     if( ! bypassSleep && millis() - derniereAction < attenteAlimentationBatterie) {
       // Attendre sleep
@@ -222,7 +224,7 @@ void loop() {
     
   }
  
-  if(!bypassSleep) {
+  if( ! bypassSleep) {
     // Attendre la prochaine lecture
     attendreProchaineLecture();
 
@@ -287,40 +289,22 @@ byte pinOutput = 200;
 bool directionPin = false;
 byte pintThrottle = 0;
 
-bool ecouterReseau() {
-
-
+void ecouterReseau() {
   // Section lecture transmissions du reseau
-//  long timer = millis();
-//  uint16_t attente = 5;  // 5ms sur batterie
-//  if(power.isAlimentationSecteur()) {
-//    // Mode alimentation secteur
-//    // On reste en ecoute durant l'equivalent du mode sleep.
-//    attente = 8000 * CYCLES_SOMMEIL;
-//  }
 
-//  Serial.println(F("Lecture reseau"));
-//  while(millis() - timer < attente) {
-    if(doitVerifierAdresseDhcp) {
-      pinOutput = 255;  // Max pour indiquer que le senseur n'est pas pret
-    } else if(pintThrottle++ == 4) {
-      if(directionPin) pinOutput++;
-      else pinOutput--;
-      if(pinOutput == 20) directionPin = true;
-      if(pinOutput == 180) directionPin = false;
-    }
-    
-    analogWrite(PIN_LED, pinOutput);
-    
-    if(!networkProcess()) {
-      return false; // Indique qu'on veut recommencer la loop, transmettre lecture
-    }
-    
-//  }
-//  Serial.println(F("Fin lecture reseau"));
+  if(doitVerifierAdresseDhcp) {
+    pinOutput = 255;  // Max pour indiquer que le senseur n'est pas pret
+  } else if(pintThrottle++ == 4) {
+    if(directionPin) pinOutput++;
+    else pinOutput--;
+    if(pinOutput == 20) directionPin = true;
+    if(pinOutput == 180) directionPin = false;
+  }
+  
+  analogWrite(PIN_LED, pinOutput);
 
-  // digitalWrite(PIN_LED, HIGH);  
-  return true;
+  networkProcess();
+  
 }
 
 bool networkProcess() {
@@ -328,7 +312,7 @@ bool networkProcess() {
   while(radio.available()){
     messageRecu = false;
 
-    radio.read(&data, 32);
+    radio.read(&data, sizeof(data));
 
     Serial.print(F("Recu message "));
     for(byte i=0; i<32; i++){
@@ -362,22 +346,27 @@ bool networkProcess() {
 void attendreProchaineLecture() {
 
   Serial.println(F("Sleep"));
-  delay(10); // Finir transmettre Serial, radio (5ms min)
+  delay(10); // Finir transmettre Serial, radio (5ms minimum)
+  if(messageRecu) return;
   
   if( doitVerifierAdresseDhcp ) {
     // Effectuer un seul cycle de sleep avec la radio ouverte
     // Le IRQ reveille le controleur pour recevoir une commande
     power.singleCycleSleep();
-    if(messageRecu) return;
+    if(messageRecu) return;  
   }
 
   // Fermer la radio, entrer en deep sleep
   radio.powerDown();
   digitalWrite(PIN_LED, LOW);
-  power.deepSleep(&messageRecu);
+  if(transmissionOk) {
+    power.deepSleep(&messageRecu);
+  } else {
+    power.singleCycleSleep();
+  }
   digitalWrite(PIN_LED, HIGH);
 
-  radio.setPALevel(RF24_PA_LOW);
+  // radio.setPALevel(RF24_PA_LOW);
   radio.powerUp();
   radio.startListening();
 
@@ -456,6 +445,7 @@ bool assignerAdresseDHCPRecue() {
       radio.printDetails();
 
       Serial.println(F("Senseur pret a transmettre"));
+      lectureDue = true;
       return false;  // Va indiquer qu'on veut transmettre immediatement
     }
   } else {

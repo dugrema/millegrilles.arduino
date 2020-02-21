@@ -19,9 +19,9 @@
 
 #define DATA_RATE RF24_250KBPS
 
-// #define RADIO_CANAL 0x5e  // Prod
+#define RADIO_CANAL 0x5e  // Prod
 // #define RADIO_CANAL 0x24  // Test
-#define RADIO_CANAL 0x0c  // Dev
+// #define RADIO_CANAL 0x0c  // Dev
 
 #define NODE_ID_DEFAULT 1
 #define PIN_LED 6
@@ -38,7 +38,7 @@
 #define BROADCAST_DHCP_LISTEN 0x290E92548BLL
 
 // Power
-#define CYCLES_SOMMEIL 5
+#define CYCLES_SOMMEIL 7
 #define BATTERY_PIN_VCC 0
 
 
