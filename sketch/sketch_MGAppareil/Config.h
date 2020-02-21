@@ -12,8 +12,8 @@
 #define BUS_MODE_ONEWIRE
 
 // Senseur DHT
-#define DHTPIN 4
-#define DHTTYPE 22
+// #define DHTPIN 4
+// #define DHTTYPE 22
 
 // Nouveau sketch
 

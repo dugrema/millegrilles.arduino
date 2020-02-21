@@ -205,7 +205,13 @@ void loop() {
     // On ne sleep jamais sur alimentation secteur
     bypassSleep = true;
 
-    if(millis() - derniereAction > attenteAlimentationSecteur) {
+    long attente;
+    if(transmissionOk) {
+      attente = attenteAlimentationSecteur;
+    } else {
+      attente = 8000L;  // Retransmettre plus rapidement
+    }
+    if(millis() - derniereAction > attente) {
       // Declencher nouvelle lecture senseur (alimentation secteur)
       lectureDue = true;
       Serial.println(F("Mode secteur, lecture due"));
