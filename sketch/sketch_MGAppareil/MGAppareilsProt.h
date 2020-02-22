@@ -23,13 +23,23 @@
 
 #define PAIRING_PAS_INIT 0xFF
 #define PAIRING_CLE_PRIVEE_PRETE 0x01
-#define PAIRING_SERVEUR_CLE 0x02
+#define PAIRING_ADRESSE_DHCP_ASSIGNEE 0x02
+#define PAIRING_SERVEUR_CLE 0x03
 
 #define MSG_TYPE_REQUETE_DHCP 0x1
 #define MSG_TYPE_REPONSE_DHCP 0x2
-#define MSG_TYPE_BEACON_DHCP 0x3
+#define MSG_TYPE_BEACON_DHCP  0x3
 
-#define MSG_TYPE_PAQUET0 0x0
+#define MSG_TYPE_CLE_LOCALE_1   0x4
+#define MSG_TYPE_CLE_LOCALE_2   0x5
+#define MSG_TYPE_CLE_DISTANTE_1 0x6
+#define MSG_TYPE_CLE_DISTANTE_2 0x7
+#define MSG_TYPE_NOUVELLE_CLE   0x8
+
+#define MSG_TYPE_PAQUET0    0x0000
+#define MSG_TYPE_PAQUET_IV  0xFFFE
+#define MSG_TYPE_PAQUET_FIN 0xFFFF
+
 #define MSG_TYPE_LECTURES_COMBINEES 0x101
 #define MSG_TYPE_LECTURE_TH 0x102
 #define MSG_TYPE_LECTURE_TP 0x103
@@ -87,7 +97,10 @@ class MGProtocoleV9 {
     byte lireReponseDhcp(byte* data, byte* adresseNoeud);
 
     bool transmettreRequeteDhcp();
-    bool transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaquets);
+    bool transmettrePaquet0(uint16_t typeMessage);
+    bool transmettrePaquetFin(byte noPaquet, byte* messageTag, byte* iv);
+    bool transmettrePaquetCrypte(uint16_t noPaquet);
+    bool transmettrePaquetsClePublique(uint16_t noPaquet);
 
     // Paquets classe SenseursPassifs
     bool transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLectureTH* fournisseur);
@@ -112,6 +125,7 @@ class MGProtocoleV9 {
     // Transmet un paquet; il faut indiquer la taille du payload 
     // (PAYLOAD_TAILLE_SIMPLE ou PAYLOAD_TAILLE_DOUBLE)
     bool transmettrePaquet(byte taillePayload);
+    bool transmettrePaquetIv(byte noPaquet, byte* iv);
 
 };
 

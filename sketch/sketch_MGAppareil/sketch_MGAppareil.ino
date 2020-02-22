@@ -50,8 +50,6 @@ byte modePairing = PAIRING_PAS_INIT;
 // *****************
 
 TransistorNoiseSource noise1(A1); // Utilise par RNG
-TransistorNoiseSource noise2(A2); // Utilise par RNG
-TransistorNoiseSource noise3(A3); // Utilise par RNG
 
 // Radio nRF24L01 sur pins CE=7, CSN=8
 RF24 radio(RF24_CE_PIN, RF24_CSN_PIN);
@@ -108,20 +106,6 @@ void setup() {
     bmp.begin();
   #endif
 
-//  // Ouverture de la radio, mesh configuration
-//  if(nodeId == 0 || nodeId == NODE_ID_DEFAULT) {
-//    nodeId = NODE_ID_DEFAULT;
-//    // ID 0 est reserve au master
-//    // Seeder avec le premier byte != 0 du UUID.
-//    // Le serveur dhcp va decider si le noeud peut le garder.
-//    for(byte i; i<sizeof(uuid); i++) {
-//      if(uuid[i]) {
-//        nodeId = uuid[i];
-//        break;
-//      }
-//    }
-//  }
-
   Serial.println(F("Setup radio"));
   radio.begin();
   radio.setChannel(RADIO_CANAL);
@@ -133,31 +117,8 @@ void setup() {
   // radio.setPALevel(RF24_PA_MAX);
   radio.setPALevel(RF24_PA_LOW);
 
-//  // Ouvrir reading pipe avec adresse reception beacon DHCP
-//  uint64_t addresseDhcp = BROADCAST_DHCP_LISTEN;
-//  radio.openReadingPipe(1, addresseDhcp);
-//
-//  Serial.print(F("Ouverture radio"));
-//  radio.printDetails();
-//  radio.startListening();
-//  radio.maskIRQ(true, true, false); // Masquer TX OK et fail sur IRQ, juste garder payload ready
-//  attachInterrupt(digitalPinToInterrupt(3), checkRadio, FALLING);
-//
-//  Serial.println(F("Radio initialisee, ecoute beacon DHCP"));
-
-  radio.powerDown();  // Garder la radio hors ligne pour generer cle privee (au besoin)
-
-//  /* Clear the reset flag. */
-//  MCUSR &= ~(1<<WDRF);
-//  /* In order to change WDE or the prescaler, we need to
-//   * set WDCE (This will allow updates for 4 clock cycles).
-//   */
-//  WDTCSR |= (1<<WDCE) | (1<<WDE);
-//  /* set new watchdog timeout prescaler value */
-//  // WDTCSR = 1<<WDP0 | 1<<WDP3; /* 8.0 seconds */
-//  WDTCSR = 0;
-//  /* Enable the WD interrupt (note no reset). */
-//  WDTCSR |= _BV(WDIE);
+  // Garder la radio hors ligne pour generer cle privee (au besoin)
+  radio.powerDown();
 
   digitalWrite(PIN_LED, LOW);
   delay(200);
@@ -196,13 +157,14 @@ void loop() {
   // S'assurer que DHCP a ete execute correctement avant de transmettre
   // On n'effectue pas de lecture sur reception de commande
   if( lectureDue && ! messageRecu ) {
-
-    // Serial.println(F("Debut traitement lecture"));
+    Serial.println(F("Debut traitement lecture"));
 
     power.lireVoltageBatterie();
 
     // S'assurer qu'on est en position de transmettre la lecture
-    if( ! doitVerifierAdresseDhcp ) {
+    if( modePairing == PAIRING_SERVEUR_CLE ) {
+      Serial.println(F("Lecture normale"));
+      
       digitalWrite(PIN_LED, HIGH);  
   
       // Effectuer lectures
@@ -221,7 +183,11 @@ void loop() {
       bool erreurTransmission = ! transmettrePaquets();
       Serial.print(F("Transmission lectures, erreur: "));
       Serial.println(erreurTransmission);
-    } 
+    
+    } else if(modePairing == PAIRING_ADRESSE_DHCP_ASSIGNEE) {
+      // Transmettre l'information de pairing avec la cle publique
+      transmettreClePublique();
+    }
 
     // Cleanup flag lecture
     lectureDue = false;
@@ -236,7 +202,7 @@ void loop() {
   ecouterReseau();
 
   // Verifier si on peut entrer en mode sleep
-  if(!power.isAlimentationSecteur()) {
+  if(power.isAlimentationSecteur()) {
     // Comportement sur alimentation secteur
     // On ne sleep jamais sur alimentation secteur
     bypassSleep = true;
@@ -266,7 +232,7 @@ void loop() {
     
   }
  
-  if( ! bypassSleep) {
+  if( ! bypassSleep ) {
     // Attendre la prochaine lecture
     attendreProchaineLecture();
 
@@ -283,22 +249,8 @@ void loop() {
 // Transmet les paquets. 
 bool transmettrePaquets() {
 
-  byte nombrePaquets = 2; // Init a 2, pour paquet 0 et paquet power.
-  #ifdef BUS_MODE_ONEWIRE
-    // OneWire peut avoir un nombre variable de senseurs
-    nombrePaquets += oneWireHandler.nombreSenseurs();
-  #endif
-
-  #ifdef BUS_MODE_I2C
-    nombrePaquets++;
-  #endif
-
-  #if defined(DHTPIN) && defined(DHTTYPE)
-    nombrePaquets++;
-  #endif
-
   // Debut de la transmission
-  transmissionOk = prot9.transmettrePaquet0(MSG_TYPE_LECTURES_COMBINEES, nombrePaquets);
+  transmissionOk = prot9.transmettrePaquet0(MSG_TYPE_LECTURES_COMBINEES);
   if(!transmissionOk) return false;
 
   byte compteurPaquet = 1;  // Fourni le numero du paquet courant
@@ -324,7 +276,29 @@ bool transmettrePaquets() {
   // Power info
   transmissionOk = prot9.transmettrePaquetLecturePower(compteurPaquet++, &power);
 
+  // Paquet de fin avec IV et tag
+  transmissionOk = prot9.transmettrePaquetFin(compteurPaquet, (byte*)0x0, (byte*)0x0);
+
   return transmissionOk;
+}
+
+bool transmettreClePublique() {
+  Serial.println(F("Transmettre cle publique"));
+  // Debut de la transmission
+  transmissionOk = prot9.transmettrePaquet0(MSG_TYPE_NOUVELLE_CLE);
+  if(!transmissionOk) return false;
+
+  byte compteurPaquet = 1;  // Fourni le numero du paquet courant
+
+  transmissionOk = prot9.transmettrePaquetsClePublique(compteurPaquet);
+  compteurPaquet += 2; // 2 paquets transmis
+
+  Serial.println(F("Transmettre paquet fine"));
+
+  // Paquet de fin avec IV et tag
+  transmissionOk = prot9.transmettrePaquetFin(compteurPaquet, (byte*)0x0, (byte*)0x0);
+
+  Serial.println(F("Paquet fine transmis"));
 }
 
 byte pinOutput = 200;
@@ -334,8 +308,8 @@ byte pintThrottle = 0;
 void ecouterReseau() {
   // Section lecture transmissions du reseau
 
-  if(doitVerifierAdresseDhcp) {
-    pinOutput = 255;  // Max pour indiquer que le senseur n'est pas pret
+  if(modePairing != PAIRING_SERVEUR_CLE) {
+    pinOutput = 255;  // Max pour indiquer que le senseur n'est pas pret a transmettre
   } else if(pintThrottle++ == 4) {
     if(directionPin) pinOutput++;
     else pinOutput--;
@@ -347,6 +321,7 @@ void ecouterReseau() {
 
   switch(modePairing) {
   case PAIRING_SERVEUR_CLE:
+  case PAIRING_ADRESSE_DHCP_ASSIGNEE:
   case PAIRING_CLE_PRIVEE_PRETE:
     networkProcess();
     break;
@@ -355,8 +330,7 @@ void ecouterReseau() {
   default:
     // Initialiser la cle
     if(RNG.available(8)) {
-      // wdt_reset();
-      // wdt_enable();
+
       Serial.println(F("Init cle DH"));
       Serial.flush();
       prot9.executerDh1();
@@ -376,30 +350,30 @@ void ecouterReseau() {
 
 bool networkProcess() {
 
-  while(radio.available()){
+  while(radio.available()) {
     messageRecu = false;
 
     radio.read(&data, sizeof(data));
 
     Serial.print(F("Recu message "));
-    for(byte i=0; i<32; i++){
-      printHex(data[i]);
-    }
+    printArray((byte*)&data, 32);
     Serial.println("");
 
     // S'assurer que le paquet est de la bonne version
     if(data[0] == VERSION_PROTOCOLE) {
-      uint16_t typeMessage = data[1];
-      
-      // memcpy(&typeMessage, (&data)+1, 2); // Lire les bytes [1:2], type message
 
-      if(doitVerifierAdresseDhcp) {
+      if(modePairing == PAIRING_CLE_PRIVEE_PRETE) {
+        // On attend une confirmation de l'adresse DHCP
         if(!assignerAdresseDHCPRecue()) {
           return false;
         }
+      } else if(modePairing == PAIRING_ADRESSE_DHCP_ASSIGNEE) {
+        // On attend une reponse avec la cle publique du serveur
+        
       } else {
         Serial.print(F("Message non gere, type"));
-        Serial.println(typeMessage);
+        printArray((byte*)&data+1, 2);
+        Serial.println();
       }
 
     }
@@ -509,6 +483,8 @@ bool assignerAdresseDHCPRecue() {
     Serial.println(nodeIdReserve);
 
     if(nodeIdReserve) {
+      modePairing = PAIRING_ADRESSE_DHCP_ASSIGNEE;
+
       nodeId = nodeIdReserve;  // Modification du node Id interne
       doitVerifierAdresseDhcp = false;
       // Changement de nodeId
