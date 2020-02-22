@@ -154,6 +154,54 @@ void testCipher(AuthenticatedCipher *cipher, const struct TestVector *test)
         Serial.println("Failed");
 }
 
+void initCipher(AuthenticatedCipher *cipher, byte* key, byte* iv, byte* authData, byte authDataLen) {
+    
+    cipher->clear();
+    
+    if (!cipher->setKey(key, cipher->keySize())) {
+        Serial.print("setKey ");
+        return false;
+    }
+
+    if (!cipher->setIV(iv, 16)) {
+        Serial.print("setIV ");
+        return false;
+    }
+
+    cipher->addAuthData(authData, authDataLen);
+
+}
+
+void encryptBuffer(AuthenticatedCipher *cipher, byte* outputBuffer, byte* buffer, byte bufferLen) {
+  cipher->encrypt(outputBuffer, buffer, bufferLen);
+}
+
+void decryptBuffer(AuthenticatedCipher *cipher, byte* outputBuffer, byte* buffer, byte bufferLen) {
+  cipher->decrypt(outputBuffer, buffer, bufferLen);
+}
+
+void computeTag(AuthenticatedCipher *cipher, byte* outputTag) {
+  cipher->computeTag(outputTag, 16);
+  Serial.print("Tag : ");
+  printArray(outputTag, 16);
+}
+
+byte contenuAuth[8] = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8};
+byte contenuACrypter[24] = {0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0xa, 0xb,
+                            0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8,
+                            0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21};
+byte testKey[32] = {0x23, 0x39, 0x52, 0xDE, 0xE4, 0xD5, 0xED, 0x5F,
+                    0x9B, 0x9C, 0x6D, 0x6F, 0xF8, 0x0F, 0xF4, 0x78,
+                    0x23, 0x39, 0x52, 0xDE, 0xE4, 0xD5, 0xED, 0x5F,
+                    0x9B, 0x9C, 0x6D, 0x6F, 0xF8, 0x0F, 0xF4, 0x78};
+byte testIv[16] = {0x62, 0xEC, 0x67, 0xF9, 0xC3, 0xA4, 0xA4, 0x07,
+                   0xFC, 0xB2, 0xA8, 0xC4, 0x90, 0x31, 0xA8, 0xB4};
+
+byte bufferTest[24];
+byte bufferDecrypteTest[24];
+byte bufferTag[16];
+byte bufferDecrypteTag[16];
+
 void setup()
 {
     Serial.begin(115200);
@@ -173,6 +221,52 @@ void setup()
     // delete eax256;
 
     Serial.println();
+
+    // Crypter le message
+
+    Serial.println("Test encryption ");
+    Serial.print("Auth text : ");
+    printArray((byte*)&contenuAuth, sizeof(contenuAuth));
+    printArray((byte*)&contenuACrypter, sizeof(contenuACrypter));
+    for(byte i=0; i < 3; i++) {
+      byte positionArray = 8*i;
+      Serial.print("Cipher text : ");
+      printArray((byte*)&contenuACrypter + positionArray, 8);
+    }
+    
+    Serial.print("Key: ");
+    printArray((byte*)&testKey, eax256->keySize());
+    Serial.print("IV: ");
+    printArray((byte*)&testIv, sizeof(testIv));
+    initCipher(eax256, (byte*)&testKey, (byte*)&testIv, (byte*)&contenuAuth, sizeof(contenuAuth));
+
+    for(byte i=0; i < 3; i++) {
+      byte positionArray = 8*i;
+      encryptBuffer(eax256, (byte*)&bufferTest + positionArray, (byte*)&contenuACrypter + positionArray, 8);
+      Serial.print("Buffer crypte : ");
+      printArray((byte*)&bufferTest + positionArray, 8);
+    }
+
+    computeTag(eax256, (byte*)&bufferTag);
+
+    // Decrypter le message
+    initCipher(eax256, (byte*)&testKey, (byte*)&testIv, (byte*)&contenuAuth, sizeof(contenuAuth));
+
+    for(byte i=0; i < 3; i++) {
+      byte positionArray = 8*i;
+      decryptBuffer(eax256, (byte*)&bufferDecrypteTest + positionArray, (byte*)&bufferTest + positionArray, 8);
+      Serial.print("Buffer decrypte : ");
+      printArray((byte*)&bufferDecrypteTest + positionArray, 8);
+    }
+
+    // computeTag(eax256, (byte*)&bufferDecrypteTag);
+
+    bool checkTag = eax256->checkTag(&bufferTag, sizeof(bufferTag));
+    if(checkTag) {
+      Serial.println("Tag OK");
+    } else {
+      Serial.println("Tag invalide");
+    }
 
 }
 
