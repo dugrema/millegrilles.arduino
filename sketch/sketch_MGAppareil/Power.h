@@ -67,6 +67,11 @@ class ArduinoPower : public FournisseurLecturePower
     long readVcc();
     void _calculerReservePct();
 
+    void setPrescalerMax();
+    void resetPrescaler();
+
+    void sleep(byte cycles);
+
 };
 
 #endif

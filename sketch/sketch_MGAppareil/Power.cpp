@@ -52,16 +52,21 @@ void ArduinoPower::singleCycleSleep() {
   // set_sleep_mode(SLEEP_MODE_PWR_SAVE);
   _current_sleep_count = 1;  // Compter nombre de cycles de sleep
 
-  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-  wdt_reset(); // Reset watchdog
-  sleep_enable();
-  sleep_mode();
-      
-  /* The program will continue from here after the WDT timeout*/
-  sleep_disable(); /* First thing to do is disable sleep. */
-      
-  /* Re-enable the peripherals. */
-  power_all_enable();
+  sleep(1);
+
+//  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+//  setPrescalerMax();
+//  wdt_reset(); // Reset watchdog
+//  sleep_enable();
+//  sleep_mode();
+//      
+//  /* The program will continue from here after the WDT timeout*/
+//  sleep_disable(); /* First thing to do is disable sleep. */
+//
+//  resetPrescaler();
+//  
+//  /* Re-enable the peripherals. */
+//  power_all_enable();
 
 }
 
@@ -69,23 +74,29 @@ void ArduinoPower::deepSleep(bool* wakeUp) {
   // set_sleep_mode(SLEEP_MODE_ADC);
   // Le power saving est maximal - le premier byte sur le UART est perdu
   // set_sleep_mode(SLEEP_MODE_PWR_SAVE);
-  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+//  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+//
+//  setPrescalerMax();
+//  
+//  wdt_reset(); // Reset watchdog
 
-  wdt_reset(); // Reset watchdog
+  sleep(_sleep_cycles - _current_sleep_count);
 
-  while( _current_sleep_count++ < _sleep_cycles) { // && !*wakeUp) {
-    // sleep_enable();
-    // wdt_reset(); // Reset watchdog
-    
-    /* Now enter sleep mode. */
-    sleep_mode();
-  }
+//  while( _current_sleep_count++ < _sleep_cycles) { // && !*wakeUp) {
+//    // sleep_enable();
+//    // wdt_reset(); // Reset watchdog
+//    
+//    /* Now enter sleep mode. */
+//    sleep_mode();
+//  }
       
-  /* The program will continue from here after the WDT timeout*/
-  sleep_disable(); /* First thing to do is disable sleep. */
-      
-  /* Re-enable the peripherals. */
-  power_all_enable();
+//  /* The program will continue from here after the WDT timeout*/
+//  sleep_disable(); /* First thing to do is disable sleep. */
+//
+//  resetPrescaler();
+//  
+//  /* Re-enable the peripherals. */
+//  power_all_enable();
 
   _current_sleep_count = 0; // Reset sleep cycles
   
@@ -196,4 +207,57 @@ byte ArduinoPower::alerte() {
   }
 
   return alerte;
+}
+
+void ArduinoPower::setPrescalerMax() {
+    /* Clear the reset flag. */
+  MCUSR &= ~(1<<WDRF);
+  /* In order to change WDE or the prescaler, we need to
+   * set WDCE (This will allow updates for 4 clock cycles).
+   */
+  WDTCSR |= (1<<WDCE) | (1<<WDE);
+  /* set new watchdog timeout prescaler value */
+  WDTCSR = 1<<WDP0 | 1<<WDP3; /* 8.0 seconds */
+  /* Enable the WD interrupt (note no reset). */
+  WDTCSR |= _BV(WDIE);
+}
+
+void ArduinoPower::resetPrescaler() {
+    /* Clear the reset flag. */
+  MCUSR &= ~(1<<WDRF);
+  
+  /* In order to change WDE or the prescaler, we need to
+   * set WDCE (This will allow updates for 4 clock cycles).
+   */
+  WDTCSR |= (1<<WDCE) | (1<<WDE);
+
+  /* set new watchdog timeout prescaler value */
+  WDTCSR = 0;  // Reset a 15ms
+  
+  /* Enable the WD interrupt (note no reset). */
+  WDTCSR |= _BV(WDIE);
+}
+
+
+void ArduinoPower::sleep(byte cycles) {
+  // Le power saving est maximal - le premier byte sur le UART est perdu
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+
+  setPrescalerMax();
+  
+  wdt_reset(); // Reset watchdog
+  byte sleepCount = 0;
+
+  while( sleepCount++ < cycles) {
+    /* Now enter sleep mode. */
+    sleep_mode();
+  }
+      
+  /* The program will continue from here after the WDT timeout*/
+  sleep_disable(); /* First thing to do is disable sleep. */
+
+  resetPrescaler();
+  
+  /* Re-enable the peripherals. */
+  power_all_enable();
 }

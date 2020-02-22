@@ -3,11 +3,10 @@
 #include <EAX.h>
 #include <AES.h>
 #include <string.h>
-#if defined(ESP8266) || defined(ESP32)
-#include <pgmspace.h>
-#else
 #include <avr/pgmspace.h>
-#endif
+#include <EEPROM.h>
+
+#include <RF24.h>
 
 #include <RNG.h>
 #include <TransistorNoiseSource.h>
@@ -191,6 +190,40 @@ void computeTag(AuthenticatedCipher *cipher, byte* outputTag) {
 
 TransistorNoiseSource noise(A2);
 
+void printEEPROM() {
+  Serial.println("Contenu EEPROM");
+    byte compteurLigne = 0x0;
+
+    Serial.print("    ");
+    for(byte i=0; i<32; i++) {
+      printHex(i);
+      Serial.print(" ");
+    }
+    Serial.println();
+    Serial.print("----");
+    for(byte i=0; i<32; i++) {
+      Serial.print("---");
+    }
+
+    byte valeur;
+    for(int i=0; i<E2END+1; i++) {
+      if(i % 32 == 0) {
+        Serial.println();
+        printHex(compteurLigne);
+        compteurLigne += 2;
+        Serial.print("| ");
+      }
+      EEPROM.get(i, valeur);
+      printHex(valeur);
+      Serial.print(" ");
+    }
+
+    Serial.println();
+}
+
+
+RF24 radio(7, 8);
+
 void setup()
 {
     Serial.begin(115200);
@@ -201,6 +234,17 @@ void setup()
 
     // Add the noise source to the list of sources known to RNG.
     RNG.addNoiseSource(noise);
+
+  pinMode(6, OUTPUT);
+  digitalWrite(6, HIGH);
+
+  radio.begin();
+  radio.setChannel(0x0c);
+  radio.setAutoAck(true);
+  radio.setRetries(15, 1);
+  radio.setDataRate(RF24_250KBPS);
+  radio.setCRCLength(RF24_CRC_16);
+  radio.setPALevel(RF24_PA_LOW);
 
     Serial.println();
 
@@ -218,8 +262,8 @@ void setup()
 
     Serial.println();
 
+    printEEPROM();
     
-
 }
 
 byte contenuAuth[8] = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8};
@@ -320,6 +364,9 @@ void loop()
     Serial.print("Sauvegarde de 48 bytes dans EEPROM a ");
     Serial.print(E2END + 1 - 48);
     Serial.println();
+
+    printEEPROM();
+    
     entropyPlein = true;
   }
 

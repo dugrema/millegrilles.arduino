@@ -1,7 +1,7 @@
 #include "MGAppareilsProt.h"
 #include <Arduino.h>
 
-void MGProtocoleV8::lireBeaconDhcp(byte* data, byte* adresseServeur) {
+void MGProtocoleV9::lireBeaconDhcp(byte* data, byte* adresseServeur) {
 
   // Init 2 premiers bytes a 0 (serveur a une adresse de 24 bits)
   adresseServeur[0] = 0;
@@ -14,7 +14,7 @@ void MGProtocoleV8::lireBeaconDhcp(byte* data, byte* adresseServeur) {
   
 }
 
-byte MGProtocoleV8::lireReponseDhcp(byte* data, byte* adresseNoeud) {
+byte MGProtocoleV9::lireReponseDhcp(byte* data, byte* adresseNoeud) {
   // Copier l'adresse recue dans le buffer addresseNoeud
   // L'adresse est dans les bytes [3:7], le premier byte est le nodeId
   memcpy(adresseNoeud, data + 3, 5);
@@ -23,12 +23,36 @@ byte MGProtocoleV8::lireReponseDhcp(byte* data, byte* adresseNoeud) {
 }
 
 // Ecrit UUID a partir du program space vers un buffer
-void MGProtocoleV8::ecrireUUID(byte* destination) {
+void MGProtocoleV9::ecrireUUID(byte* destination) {
   // memcpy_P(destination, _uuid, 16);  // Utiliser si UUID est dans PROGMEM
   memcpy(destination, _uuid, 16);
 }
 
-bool MGProtocoleV8::transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaquets) {
+byte* MGProtocoleV9::getCleBuffer() {
+  return (byte*)&_cle;
+}
+
+byte* MGProtocoleV9::executerDh1() {
+  // Creer un buffer temporaire pour sauvegarder la cle privee
+  _bufferEd25519 = new byte[32];
+  
+  Curve25519::dh1(_cle, _bufferEd25519);
+
+  // Retourner la cle publique
+  return (byte*)&_cle;
+}
+
+void MGProtocoleV9::executerDh2() {
+  // Note, copier la cle publique distante dans _cle (getCle()) avant d'appeler cette methode
+
+  // Calculer la cle secrete, sauvegarder
+  Curve25519::dh2(_cle, _bufferEd25519);
+
+  // Nettoyage, on n'a plus besoin du buffer avec la cle privee
+  delete _bufferEd25519;
+}
+
+bool MGProtocoleV9::transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaquets) {
     uint8_t transmitBuffer[PAYLOAD_TAILLE_SIMPLE];
 
     // Format message :
@@ -58,7 +82,7 @@ bool MGProtocoleV8::transmettrePaquet0(uint16_t typeMessage, uint16_t nombrePaqu
     return transmissionOk;
 }
 
-bool MGProtocoleV8::transmettreRequeteDhcp() {
+bool MGProtocoleV9::transmettreRequeteDhcp() {
     uint8_t transmitBuffer[PAYLOAD_TAILLE_SIMPLE];
 
     // Format message :
@@ -86,7 +110,7 @@ bool MGProtocoleV8::transmettreRequeteDhcp() {
     return transmissionOk;
 }
 
-bool MGProtocoleV8::transmettrePaquet(byte taillePayload) {
+bool MGProtocoleV9::transmettrePaquet(byte taillePayload) {
   bool transmissionOk = false;
   byte compteurTransmissions = 0;
   
@@ -99,7 +123,7 @@ bool MGProtocoleV8::transmettrePaquet(byte taillePayload) {
   return transmissionOk;
 }
 
-bool MGProtocoleV8::transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLectureTH* fournisseur) {
+bool MGProtocoleV9::transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLectureTH* fournisseur) {
 
   // Format message THP (Temperatures, Humidite, Pression Atmospherique)
   // Version - 1 byte
@@ -124,7 +148,7 @@ bool MGProtocoleV8::transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLec
   return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
 }
 
-bool MGProtocoleV8::transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLectureTP* fournisseur) {
+bool MGProtocoleV9::transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLectureTP* fournisseur) {
 
   // Format message TP (Temperatures,  Pression Atmospherique)
   // Version - 1 byte
@@ -150,7 +174,7 @@ bool MGProtocoleV8::transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLec
   return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
 }
 
-bool MGProtocoleV8::transmettrePaquetLecturePower(uint16_t noPaquet, FournisseurLecturePower* fournisseur) {
+bool MGProtocoleV9::transmettrePaquetLecturePower(uint16_t noPaquet, FournisseurLecturePower* fournisseur) {
 
   // Format message Power
   // Version - 1 byte
@@ -178,7 +202,7 @@ bool MGProtocoleV8::transmettrePaquetLecturePower(uint16_t noPaquet, Fournisseur
   return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
 }
 
-bool MGProtocoleV8::transmettrePaquetLectureOneWire(uint16_t noPaquet, FournisseurLectureOneWire* fournisseur) {
+bool MGProtocoleV9::transmettrePaquetLectureOneWire(uint16_t noPaquet, FournisseurLectureOneWire* fournisseur) {
   // Format message 1W
   // Version - 1 byte
   // Node ID - 1 byte
@@ -199,7 +223,7 @@ bool MGProtocoleV8::transmettrePaquetLectureOneWire(uint16_t noPaquet, Fournisse
   return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
 }
 
-//bool MGProtocoleV8::transmettrePaquetLectureMillivolt(uint16_t noPaquet, uint32_t millivolt1, uint32_t millivolt2, uint32_t millivolt3, uint32_t millivolt4) {
+//bool MGProtocoleV9::transmettrePaquetLectureMillivolt(uint16_t noPaquet, uint32_t millivolt1, uint32_t millivolt2, uint32_t millivolt3, uint32_t millivolt4) {
 //
 //  // Format message millivol - supporte jusqu'a 4 milliards de volts
 //  // noPaquet - 2 bytes

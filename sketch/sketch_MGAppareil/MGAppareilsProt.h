@@ -11,6 +11,7 @@
 #include <CryptoLW.h>
 #include <EAX.h>
 #include <AES.h>
+#include <Curve25519.h>
 
 #define NO_TEMP -32768
 #define NO_PRESSURE 0xFF
@@ -19,6 +20,10 @@
 #define PAYLOAD_TAILLE_SIMPLE 32
 
 #define LIMITE_RETRANSMISSION 200
+
+#define PAIRING_PAS_INIT 0xFF
+#define PAIRING_CLE_PRIVEE_PRETE 0x01
+#define PAIRING_SERVEUR_CLE 0x02
 
 #define MSG_TYPE_REQUETE_DHCP 0x1
 #define MSG_TYPE_REPONSE_DHCP 0x2
@@ -64,16 +69,19 @@ class FournisseurLectureOneWire {
     virtual byte* data();  // byte[12]
 };
 
-class MGProtocoleV8 {
+class MGProtocoleV9 {
 
   public:
-    // MGProtocoleV7(const byte* uuid, RF24Mesh* mesh) {
-    MGProtocoleV8(const byte* uuid, RF24* radio, const byte* nodeId) {
+    //MGProtocoleV8(const byte* uuid, RF24* radio, const byte* nodeId) {
+    MGProtocoleV9(const byte* uuid, RF24* radio, const byte* nodeId) {
       _uuid = uuid;
       _nodeId = nodeId;
-      // _mesh = mesh;
       _radio = radio;
     };
+
+    byte* getCleBuffer(); // Retourne le buffer pour la cle - utiliser pour setter la cle publique distante ou cle secrete
+    byte* executerDh1();  // DH passe 1 pour generer cle privee. Retourne byte* vers cle publique.
+    void executerDh2();   // DH passe 2 pour extraire cle secrete
 
     void lireBeaconDhcp(byte* data, byte* adresseServeur);
     byte lireReponseDhcp(byte* data, byte* adresseNoeud);
@@ -93,10 +101,11 @@ class MGProtocoleV8 {
   private:
     const byte* _uuid;
     const byte* _nodeId;
-    // RF24Mesh* _mesh;
     RF24* _radio;
     
     byte _buffer[32]; // 32 bytes, max pour RF24
+    byte _cle[32];  // Buffer de 32 bytes pour stocker des cles (publique durant echange ed25519 et secrete une fois pairing complete)
+    byte* _bufferEd25519;  // Byte* d'un buffer sur heap pour Ed25519, permet de conserver une valeur secondaire lorsque necesssaire (e.g. cle privee)
 
     void ecrireUUID(byte* destination);
 
