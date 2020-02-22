@@ -9,6 +9,9 @@
 #include <avr/pgmspace.h>
 #endif
 
+#include <RNG.h>
+#include <TransistorNoiseSource.h>
+
 #define MAX_PLAINTEXT_LEN 64
 
 struct TestVector
@@ -186,25 +189,18 @@ void computeTag(AuthenticatedCipher *cipher, byte* outputTag) {
   printArray(outputTag, 16);
 }
 
-byte contenuAuth[8] = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8};
-byte contenuACrypter[24] = {0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0xa, 0xb,
-                            0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8,
-                            0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21};
-byte testKey[32] = {0x23, 0x39, 0x52, 0xDE, 0xE4, 0xD5, 0xED, 0x5F,
-                    0x9B, 0x9C, 0x6D, 0x6F, 0xF8, 0x0F, 0xF4, 0x78,
-                    0x23, 0x39, 0x52, 0xDE, 0xE4, 0xD5, 0xED, 0x5F,
-                    0x9B, 0x9C, 0x6D, 0x6F, 0xF8, 0x0F, 0xF4, 0x78};
-byte testIv[16] = {0x62, 0xEC, 0x67, 0xF9, 0xC3, 0xA4, 0xA4, 0x07,
-                   0xFC, 0xB2, 0xA8, 0xC4, 0x90, 0x31, 0xA8, 0xB4};
-
-byte bufferTest[24];
-byte bufferDecrypteTest[24];
-byte bufferTag[16];
-byte bufferDecrypteTag[16];
+TransistorNoiseSource noise(A2);
 
 void setup()
 {
     Serial.begin(115200);
+
+    // Initialize the random number generator.
+    RNG.begin("Init data random, mettre UUID ici");
+    RNG.setAutoSaveTime(120); // 2 heures
+
+    // Add the noise source to the list of sources known to RNG.
+    RNG.addNoiseSource(noise);
 
     Serial.println();
 
@@ -222,7 +218,28 @@ void setup()
 
     Serial.println();
 
-    // Crypter le message
+    
+
+}
+
+byte contenuAuth[8] = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8};
+byte contenuACrypter[24] = {0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0xa, 0xb,
+                            0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8,
+                            0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21};
+byte testKey[32] = {0x23, 0x39, 0x52, 0xDE, 0xE4, 0xD5, 0xED, 0x5F,
+                    0x9B, 0x9C, 0x6D, 0x6F, 0xF8, 0x0F, 0xF4, 0x78,
+                    0x23, 0x39, 0x52, 0xDE, 0xE4, 0xD5, 0xED, 0x5F,
+                    0x9B, 0x9C, 0x6D, 0x6F, 0xF8, 0x0F, 0xF4, 0x78};
+byte testIv[16] = {0x62, 0xEC, 0x67, 0xF9, 0xC3, 0xA4, 0xA4, 0x07,
+                   0xFC, 0xB2, 0xA8, 0xC4, 0x90, 0x31, 0xA8, 0xB4};
+
+byte bufferTest[24];
+byte bufferDecrypteTest[24];
+byte bufferTag[16];
+byte bufferDecrypteTag[16];
+
+void testCrypter() {
+  // Crypter le message
 
     Serial.println("Test encryption ");
     Serial.print("Auth text : ");
@@ -267,11 +284,45 @@ void setup()
     } else {
       Serial.println("Tag invalide");
     }
-
 }
+
+bool calibrating = false;
+bool testComplete = false;
+bool entropyPlein = false;
 
 void loop()
 {
+
+  // Track changes to the calibration state on the noise source.
+  bool newCalibrating = noise.calibrating();
+  if (newCalibrating != calibrating) {
+      calibrating = newCalibrating;
+      if (calibrating)
+          Serial.println("calibrating");
+  }
+    
+  // Perform regular housekeeping on the random number generator.
+  RNG.loop();
+
+  // Generate output whenever 32 bytes of entropy have been accumulated.
+  // The first time through, we wait for 48 bytes for a full entropy pool.
+  if ( ! testComplete && RNG.available(sizeof(testIv)) ) {
+      RNG.rand(testIv, sizeof(testIv));
+      // printArray(testIv, sizeof(testIv));
+
+      testCrypter();
+      testComplete = true;
+  }
+
+  if( ! entropyPlein && RNG.available(48)) {
+    Serial.println("Entropy plein");
+    RNG.save();
+    Serial.print("Sauvegarde de 48 bytes dans EEPROM a ");
+    Serial.print(E2END + 1 - 48);
+    Serial.println();
+    entropyPlein = true;
+  }
+
 }
 
 void printArray(byte* liste, int len) {
