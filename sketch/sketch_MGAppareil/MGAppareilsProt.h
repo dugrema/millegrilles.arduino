@@ -90,6 +90,7 @@ class MGProtocoleV9 {
     };
 
     byte* getCleBuffer(); // Retourne le buffer pour la cle - utiliser pour setter la cle publique distante ou cle secrete
+    byte* getClePrivee();
     byte* executerDh1();  // DH passe 1 pour generer cle privee. Retourne byte* vers cle publique.
     void executerDh2();   // DH passe 2 pour extraire cle secrete
 
@@ -118,7 +119,7 @@ class MGProtocoleV9 {
     
     byte _buffer[32]; // 32 bytes, max pour RF24
     byte _cle[32];  // Buffer de 32 bytes pour stocker des cles (publique durant echange ed25519 et secrete une fois pairing complete)
-    byte* _bufferEd25519;  // Byte* d'un buffer sur heap pour Ed25519, permet de conserver une valeur secondaire lorsque necesssaire (e.g. cle privee)
+    byte _bufferEd25519[32];  // Byte* d'un buffer sur heap pour Ed25519, permet de conserver une valeur secondaire lorsque necesssaire (e.g. cle privee)
 
     void ecrireUUID(byte* destination);
 

@@ -329,7 +329,7 @@ void ecouterReseau() {
   case PAIRING_PAS_INIT:
   default:
     // Initialiser la cle
-    if(RNG.available(8)) {
+    if(RNG.available(48)) {
 
       Serial.println(F("Init cle DH"));
       Serial.flush();
@@ -337,6 +337,9 @@ void ecouterReseau() {
       modePairing = PAIRING_CLE_PRIVEE_PRETE;
       Serial.print(F("Cle publique : "));
       printArray(prot9.getCleBuffer(), 32);
+      Serial.println();
+      Serial.print(F("Cle privee : "));
+      printArray(prot9.getClePrivee(), 32);
       Serial.println();
 
       // On a une cle privee, on prepare la radio a ecouter le beacon DHCP
@@ -369,7 +372,7 @@ bool networkProcess() {
         }
       } else if(modePairing == PAIRING_ADRESSE_DHCP_ASSIGNEE) {
         // On attend une reponse avec la cle publique du serveur
-        
+        recevoirClePubliqueServeur();
       } else {
         Serial.print(F("Message non gere, type"));
         printArray((byte*)&data+1, 2);
@@ -382,6 +385,43 @@ bool networkProcess() {
   
   return true;
   
+}
+
+void recevoirClePubliqueServeur() {
+  uint16_t typeMessage;
+  memcpy(&typeMessage, data + 1, 2);
+  
+  Serial.print(F("Recevoir cle publique, type message : "));
+  Serial.println(typeMessage);
+
+  if(typeMessage == MSG_TYPE_CLE_DISTANTE_1) {
+    
+    // Copier la premiere partie de la cle (28 bytes), reset reste du buffer
+    memcpy(prot9.getCleBuffer(), data + 4, 28);
+    memset(prot9.getCleBuffer() + 28, 0x0, 4);
+    
+  } else if(typeMessage == MSG_TYPE_CLE_DISTANTE_2) {
+    
+    // S'assurer qu'on a recu la premiere partie de la cle - verifier que la
+    // fin du buffer de cle est 0x0
+    //if(memcmp(prot9.getCleBuffer() + 28, 0x0, 4) == 0) {
+      // Copier la deuxieme partie de la cle
+      memcpy(prot9.getCleBuffer() + 28, data + 4, 4);
+
+      Serial.print("Cle publique serveur recue au complet : ");
+      printArray(prot9.getCleBuffer(), 32);
+
+      Serial.print("Calculer cle secrete : ");
+      prot9.executerDh2();
+      printArray(prot9.getCleBuffer(), 32);
+
+      modePairing = PAIRING_SERVEUR_CLE;
+      
+//    } else {
+//      Serial.println(F("Recue 2e partie de la cle mais 1ere pas recue"));
+//    }
+
+  }
 }
 
 void attendreProchaineLecture() {

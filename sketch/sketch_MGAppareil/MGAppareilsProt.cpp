@@ -32,9 +32,13 @@ byte* MGProtocoleV9::getCleBuffer() {
   return (byte*)&_cle;
 }
 
+byte* MGProtocoleV9::getClePrivee() {
+  return (byte*)&_bufferEd25519;
+}
+
 byte* MGProtocoleV9::executerDh1() {
   // Creer un buffer temporaire pour sauvegarder la cle privee
-  _bufferEd25519 = new byte[32];
+  //_bufferEd25519 = new byte[32];
   
   Curve25519::dh1(_cle, _bufferEd25519);
 
@@ -49,7 +53,8 @@ void MGProtocoleV9::executerDh2() {
   Curve25519::dh2(_cle, _bufferEd25519);
 
   // Nettoyage, on n'a plus besoin du buffer avec la cle privee
-  delete _bufferEd25519;
+//  delete _bufferEd25519;
+//  _bufferEd25519 = 0x0;  // Comment faire null en C++?
 }
 
 bool MGProtocoleV9::transmettrePaquet0(uint16_t typeMessage) {
