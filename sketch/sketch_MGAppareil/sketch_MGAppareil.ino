@@ -55,6 +55,7 @@ TransistorNoiseSource noise1(A1); // Utilise par RNG
 RF24 radio(RF24_CE_PIN, RF24_CSN_PIN);
 byte data[32];  // Data buffer pour reception/emission RF24
 volatile bool messageRecu = false;
+bool ivUsed = true;  // Va creer un IV random avant la premiere transmission
 
 byte nodeId = NODE_ID_DEFAULT;
 
@@ -162,7 +163,7 @@ void loop() {
     power.lireVoltageBatterie();
 
     // S'assurer qu'on est en position de transmettre la lecture
-    if( modePairing == PAIRING_SERVEUR_CLE ) {
+    if( modePairing == PAIRING_SERVEUR_CLE && !ivUsed ) {
       Serial.println(F("Lecture normale"));
       
       digitalWrite(PIN_LED, HIGH);  
@@ -183,7 +184,7 @@ void loop() {
       bool erreurTransmission = ! transmettrePaquets();
       Serial.print(F("Transmission lectures, erreur: "));
       Serial.println(erreurTransmission);
-    
+
     } else if(modePairing == PAIRING_ADRESSE_DHCP_ASSIGNEE) {
       // Transmettre l'information de pairing avec la cle publique
       transmettreClePublique();
@@ -249,11 +250,17 @@ void loop() {
 // Transmet les paquets. 
 bool transmettrePaquets() {
 
-  // Debut de la transmission
+  if(ivUsed) {
+    Serial.println(F("transmettrePaquets: echec, besoin nouveau IV"));
+    return false; // On doit changer le IV avant de transmettre
+  }
+  
+  // Debut de la transmission, envoit 2 paquets (0 et IV)
   transmissionOk = prot9.transmettrePaquet0(MSG_TYPE_LECTURES_COMBINEES);
   if(!transmissionOk) return false;
 
-  byte compteurPaquet = 1;  // Fourni le numero du paquet courant
+  ivUsed = true;  // Le IV a ete transmis avec succes, on le considere comme consomme
+  byte compteurPaquet = 2;  // Fourni le numero du paquet courant
 
   // Dalsemi OneWire (1W)
   #ifdef BUS_MODE_ONEWIRE
@@ -277,7 +284,7 @@ bool transmettrePaquets() {
   transmissionOk = prot9.transmettrePaquetLecturePower(compteurPaquet++, &power);
 
   // Paquet de fin avec IV et tag
-  transmissionOk = prot9.transmettrePaquetFin(compteurPaquet, (byte*)0x0, (byte*)0x0);
+  transmissionOk = prot9.transmettrePaquetFin(compteurPaquet);
 
   return transmissionOk;
 }
@@ -296,7 +303,7 @@ bool transmettreClePublique() {
   Serial.println(F("Transmettre paquet fine"));
 
   // Paquet de fin avec IV et tag
-  transmissionOk = prot9.transmettrePaquetFin(compteurPaquet, (byte*)0x0, (byte*)0x0);
+  transmissionOk = prot9.transmettrePaquetFin(compteurPaquet);
 
   Serial.println(F("Paquet fine transmis"));
 }
@@ -337,9 +344,6 @@ void ecouterReseau() {
       modePairing = PAIRING_CLE_PRIVEE_PRETE;
       Serial.print(F("Cle publique : "));
       printArray(prot9.getCleBuffer(), 32);
-      Serial.println();
-      Serial.print(F("Cle privee : "));
-      printArray(prot9.getClePrivee(), 32);
       Serial.println();
 
       // On a une cle privee, on prepare la radio a ecouter le beacon DHCP
@@ -382,6 +386,16 @@ bool networkProcess() {
     }
   }
   messageRecu = false;
+
+  // Mettre a jour le IV s'il y a suffisamment d'information dans RNG
+  if(ivUsed && RNG.available(16)) {
+    // IV utilise et RNG a suffisamment d'entropie, extraire un IV de 16 bytes
+    RNG.rand(prot9.getIvBuffer(), 16);
+    ivUsed = false;
+
+    Serial.print(F("Nouveau IV : "));
+    printArray(prot9.getIvBuffer(), 16);
+  }
   
   return true;
   

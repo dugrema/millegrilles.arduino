@@ -90,16 +90,16 @@ class MGProtocoleV9 {
     };
 
     byte* getCleBuffer(); // Retourne le buffer pour la cle - utiliser pour setter la cle publique distante ou cle secrete
-    byte* getClePrivee();
+    byte* getIvBuffer(); // Retourne le buffer pour la cle - utiliser pour setter la cle publique distante ou cle secrete
     byte* executerDh1();  // DH passe 1 pour generer cle privee. Retourne byte* vers cle publique.
-    void executerDh2();   // DH passe 2 pour extraire cle secrete
+    bool executerDh2();   // DH passe 2 pour extraire cle secrete. Retourne false si le processus a echoue.
 
     void lireBeaconDhcp(byte* data, byte* adresseServeur);
     byte lireReponseDhcp(byte* data, byte* adresseNoeud);
 
     bool transmettreRequeteDhcp();
     bool transmettrePaquet0(uint16_t typeMessage);
-    bool transmettrePaquetFin(byte noPaquet, byte* messageTag, byte* iv);
+    bool transmettrePaquetFin(byte noPaquet);
     bool transmettrePaquetCrypte(uint16_t noPaquet);
     bool transmettrePaquetsClePublique(uint16_t noPaquet);
 
@@ -119,14 +119,15 @@ class MGProtocoleV9 {
     
     byte _buffer[32]; // 32 bytes, max pour RF24
     byte _cle[32];  // Buffer de 32 bytes pour stocker des cles (publique durant echange ed25519 et secrete une fois pairing complete)
-    byte _bufferEd25519[32];  // Byte* d'un buffer sur heap pour Ed25519, permet de conserver une valeur secondaire lorsque necesssaire (e.g. cle privee)
+    byte _iv[16];  // IV pour transmissions cryptees
+    byte * _bufferTemp = 0x0;  // Byte* d'un buffer sur heap pour Ed25519, permet de conserver une valeur secondaire lorsque necesssaire (e.g. cle privee)
 
     void ecrireUUID(byte* destination);
 
     // Transmet un paquet; il faut indiquer la taille du payload 
     // (PAYLOAD_TAILLE_SIMPLE ou PAYLOAD_TAILLE_DOUBLE)
     bool transmettrePaquet(byte taillePayload);
-    bool transmettrePaquetIv(byte noPaquet, byte* iv);
+    bool transmettrePaquetIv(byte noPaquet);
 
 };
 

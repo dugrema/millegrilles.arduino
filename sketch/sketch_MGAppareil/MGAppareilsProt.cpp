@@ -29,32 +29,37 @@ void MGProtocoleV9::ecrireUUID(byte* destination) {
 }
 
 byte* MGProtocoleV9::getCleBuffer() {
-  return (byte*)&_cle;
+  return (byte*) &_cle;
 }
 
-byte* MGProtocoleV9::getClePrivee() {
-  return (byte*)&_bufferEd25519;
+byte* MGProtocoleV9::getIvBuffer() {
+  return (byte*) &_iv;
 }
 
 byte* MGProtocoleV9::executerDh1() {
   // Creer un buffer temporaire pour sauvegarder la cle privee
-  //_bufferEd25519 = new byte[32];
-  
-  Curve25519::dh1(_cle, _bufferEd25519);
+  _bufferTemp = new byte[32];
+
+  Curve25519::dh1(_cle, _bufferTemp);
 
   // Retourner la cle publique
   return (byte*)&_cle;
 }
 
-void MGProtocoleV9::executerDh2() {
+bool MGProtocoleV9::executerDh2() {
   // Note, copier la cle publique distante dans _cle (getCle()) avant d'appeler cette methode
+  bool succes = false;
+  
+  if(_bufferTemp != 0x0) {
+    // Calculer la cle secrete, sauvegarder
+    succes = Curve25519::dh2(_cle, _bufferTemp);
+  
+    // Nettoyage, on n'a plus besoin du buffer avec la cle privee
+    delete _bufferTemp;
+    _bufferTemp = 0x0;  // Comment faire null en C++?
+  }
 
-  // Calculer la cle secrete, sauvegarder
-  Curve25519::dh2(_cle, _bufferEd25519);
-
-  // Nettoyage, on n'a plus besoin du buffer avec la cle privee
-//  delete _bufferEd25519;
-//  _bufferEd25519 = 0x0;  // Comment faire null en C++?
+  return succes;
 }
 
 bool MGProtocoleV9::transmettrePaquet0(uint16_t typeMessage) {
@@ -82,10 +87,15 @@ bool MGProtocoleV9::transmettrePaquet0(uint16_t typeMessage) {
     }
     _radio->startListening();
 
+    if(!transmissionOk) return false;  // Erreur transmission, abort
+  
+    // Transmettre IV utilise pour crypter/decrypter message
+    transmissionOk = transmettrePaquetIv(1);
+
     return transmissionOk;
 }
 
-bool MGProtocoleV9::transmettrePaquetFin(byte noPaquet, byte* messageTag, byte* iv) {
+bool MGProtocoleV9::transmettrePaquetFin(byte noPaquet) {
   // Format message :
   // Version (1 byte)
   // Node ID (1 byte)
@@ -95,29 +105,26 @@ bool MGProtocoleV9::transmettrePaquetFin(byte noPaquet, byte* messageTag, byte* 
 
   bool transmissionOk = false;
   
-  if(iv != 0x0) {
-    // IV optionnel pour message non cryptes (e.g. DHCP)
-    transmissionOk = transmettrePaquetIv(noPaquet, iv); // Transmettre IV
-    noPaquet++;  // Incrementer no paquet
-  } else {
-    transmissionOk = true;
-  }
+//  // IV optionnel pour message non cryptes (e.g. DHCP)
+//  transmissionOk = transmettrePaquetIv(noPaquet); // Transmettre IV
+//  noPaquet++;  // Incrementer no paquet
   
-  if(transmissionOk) {
-    transmissionOk = false;
+//  if(transmissionOk) {
+//    transmissionOk = false;
 
     uint16_t typeMessage = MSG_TYPE_PAQUET_FIN;
-    uint16_t noPaquetInt = noPaquet;
+    // uint16_t noPaquetInt = noPaquet;
   
     _buffer[0] = VERSION_PROTOCOLE;
     _buffer[1] = _nodeId[0];
     memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
-    memcpy(_buffer + 4, &noPaquetInt, sizeof(noPaquetInt));
-    if(messageTag != 0x0) {
-      memcpy(_buffer + 6, messageTag, 16);
-    } else {
+    memcpy(_buffer + 4, &noPaquet, sizeof(noPaquet));
+
+//    if(messageTag != 0x0) {
+//      memcpy(_buffer + 6, messageTag, 16);
+//    } else {
       memcpy(_buffer + 6, 0x0, 16);  // Vider le buffer
-    }
+//    }
   
     byte compteurTransmissions = 0;
     _radio->stopListening();
@@ -126,12 +133,12 @@ bool MGProtocoleV9::transmettrePaquetFin(byte noPaquet, byte* messageTag, byte* 
     }
     _radio->startListening();
     
-  }
+//  }
 
   return transmissionOk;
 }
 
-bool MGProtocoleV9::transmettrePaquetIv(byte noPaquet, byte* iv) {
+bool MGProtocoleV9::transmettrePaquetIv(byte noPaquet) {
   // Format message :
   // Version (1 byte)
   // Node ID (1 byte)
@@ -146,7 +153,7 @@ bool MGProtocoleV9::transmettrePaquetIv(byte noPaquet, byte* iv) {
   _buffer[1] = _nodeId[0];
   memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
   memcpy(_buffer + 4, &noPaquetInt, sizeof(noPaquetInt));
-  memcpy(_buffer + 6, iv, 16);
+  memcpy(_buffer + 6, &_iv, 16);
 
   bool transmissionOk = false;
   byte compteurTransmissions = 0;
