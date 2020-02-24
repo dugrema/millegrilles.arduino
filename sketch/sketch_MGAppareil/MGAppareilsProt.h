@@ -107,7 +107,6 @@ class MGProtocoleV9 {
     bool transmettreRequeteDhcp();
     byte transmettrePaquet0(uint16_t typeMessage);
     bool transmettrePaquetFin(byte noPaquet);
-    bool transmettrePaquetCrypte(byte taillePaquet);
     bool transmettrePaquetsClePublique(uint16_t noPaquet);
 
     // Paquets classe SenseursPassifs
@@ -130,7 +129,7 @@ class MGProtocoleV9 {
     RF24* _radio;
     EAX<AES256>* eax256 = 0x0;
     
-    byte _buffer[32]; // 32 bytes, max pour RF24
+    // byte _buffer[32]; // 32 bytes, max pour RF24
     byte _cle[32];  // Buffer de 32 bytes pour stocker des cles (publique durant echange ed25519 et secrete une fois pairing complete)
     byte _iv[16];  // IV pour transmissions cryptees
     byte * _bufferTemp = 0x0;  // Byte* d'un buffer sur heap pour Ed25519, permet de conserver une valeur secondaire lorsque necesssaire (e.g. cle privee)
@@ -141,8 +140,9 @@ class MGProtocoleV9 {
 
     // Transmet un paquet; il faut indiquer la taille du payload 
     // (PAYLOAD_TAILLE_SIMPLE ou PAYLOAD_TAILLE_DOUBLE)
-    bool transmettrePaquet(byte taillePayload);
+    bool transmettrePaquet(byte taillePayload, byte* buffer);
     bool transmettrePaquetIv(byte noPaquet);
+    bool transmettrePaquetCrypte(byte taillePaquet, byte* buffer);
 };
 
 

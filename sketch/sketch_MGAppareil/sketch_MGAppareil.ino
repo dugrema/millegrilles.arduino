@@ -224,7 +224,7 @@ void loop() {
     bypassSleep = true;
 
     long attente;
-    if(prot9.isTransmissionOk()) {
+    if( prot9.isTransmissionOk() && prot9.isAckRecu() ) {
       attente = attenteAlimentationSecteur;
     } else {
       attente = 8000L;  // Retransmettre plus rapidement
