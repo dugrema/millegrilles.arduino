@@ -35,9 +35,10 @@
 #define MSG_TYPE_CLE_DISTANTE_1 0x6
 #define MSG_TYPE_CLE_DISTANTE_2 0x7
 #define MSG_TYPE_NOUVELLE_CLE   0x8
+#define MSG_TYPE_REPONSE_ACK    0x9
 
 #define MSG_TYPE_PAQUET0       0x0000
-#define MSG_TYPE_PAQUET_CRYPTE 0xFF00
+#define MSG_TYPE_PAQUET_INCONNU 0xF0F0
 #define MSG_TYPE_PAQUET_IV     0xFFFE
 #define MSG_TYPE_PAQUET_FIN    0xFFFF
 
@@ -114,6 +115,11 @@ class MGProtocoleV9 {
     bool transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLectureTP* fournisseur);
     bool transmettrePaquetLecturePower(uint16_t noPaquet, FournisseurLecturePower* fournisseur);
     bool transmettrePaquetLectureOneWire(uint16_t noPaquet, FournisseurLectureOneWire* fournisseur);
+    bool isTransmissionOk();
+    bool isAckRecu();
+
+    // Recevoir paquet
+    uint16_t recevoirPaquet(byte* buffer, byte bufferLen);  // Recoit un paquet, insere donnees dans le buffer au besoin. Retourne le type de paquet recu.
     
 //    bool transmettrePaquetLectureMillivolt(uint16_t noPaquet, uint32_t millivolt1, uint32_t millivolt2, uint32_t millivolt3, uint32_t millivolt4);
 //    bool transmettrePaquetLecturePower(uint16_t noPaquet, uint32_t millivolt, byte reservePct, byte alerte);
@@ -128,6 +134,8 @@ class MGProtocoleV9 {
     byte _cle[32];  // Buffer de 32 bytes pour stocker des cles (publique durant echange ed25519 et secrete une fois pairing complete)
     byte _iv[16];  // IV pour transmissions cryptees
     byte * _bufferTemp = 0x0;  // Byte* d'un buffer sur heap pour Ed25519, permet de conserver une valeur secondaire lorsque necesssaire (e.g. cle privee)
+    bool _transmissionOk = false;  // Vrai si la derniere transmission s'est rendue correctement (ACK RF24 recu)
+    bool _ackRecu = true;          // Faux si on attend un ACK pour une transmission
 
     void ecrireUUID(byte* destination);
 
@@ -135,7 +143,6 @@ class MGProtocoleV9 {
     // (PAYLOAD_TAILLE_SIMPLE ou PAYLOAD_TAILLE_DOUBLE)
     bool transmettrePaquet(byte taillePayload);
     bool transmettrePaquetIv(byte noPaquet);
-
 };
 
 

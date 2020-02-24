@@ -36,6 +36,14 @@ byte* MGProtocoleV9::getIvBuffer() {
   return (byte*) &_iv;
 }
 
+bool MGProtocoleV9::isTransmissionOk() {
+  return _transmissionOk;
+}
+
+bool MGProtocoleV9::isAckRecu() {
+  return _ackRecu;
+}
+
 byte* MGProtocoleV9::executerDh1() {
   // Creer un buffer temporaire pour sauvegarder la cle privee
   _bufferTemp = new byte[32];
@@ -127,24 +135,20 @@ byte MGProtocoleV9::transmettrePaquet0(uint16_t typeMessage) {
     memcpy(_buffer + 6, &typeMessage, sizeof(typeMessage));
     ecrireUUID(_buffer + 8);
 
-    bool transmissionOk = transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
+    transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
 
     byte nombrePaquets = 0;
-    if(!transmissionOk) return nombrePaquets;  // Erreur transmission, abort
+    if(!_transmissionOk) return nombrePaquets;  // Erreur transmission, abort
     nombrePaquets++;
   
     if( initCipher(_buffer, 22) ) { // Verifier si cryptage actif
       // Transmettre IV utilise pour crypter/decrypter message
       // Ce message indique implicitement que le reste de la transmission est cryptee
       // Auth data est le paquet 0 au complet, garanti la provenance
-      transmissionOk = transmettrePaquetIv(1);
+      transmettrePaquetIv(1);
       nombrePaquets++;
     }
 
-//    if(transmissionOk) {
-//      initCipher(_buffer, 22); // Auth data est le paquet 0 au complet, garanti la provenance
-//    }
-  
     return nombrePaquets;
 }
 
@@ -157,8 +161,6 @@ bool MGProtocoleV9::transmettrePaquetFin(byte noPaquet) {
   // Nombre paquets     -  2 bytes
   // Message Tag eax256 - 16 bytes
 
-  bool transmissionOk = false;
-  
   uint16_t typeMessage = MSG_TYPE_PAQUET_FIN;
   uint16_t nombrePaquets = noPaquet;
 
@@ -171,15 +173,10 @@ bool MGProtocoleV9::transmettrePaquetFin(byte noPaquet) {
   // Calculer le tag (hash) pour message crypte
   // Note : pour les message non cryptes, le buffer est mis a 0 sur 16 bytes.
   computeTag(_buffer + 8);
+
+  _ackRecu = false; // On attend un ACK pour cette transmission
   
-  byte compteurTransmissions = 0;
-  _radio->stopListening();
-  while(!transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
-    transmissionOk = _radio->write(_buffer, PAYLOAD_TAILLE_SIMPLE);
-  }
-  _radio->startListening();
-    
-  return transmissionOk;
+  return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
 }
 
 bool MGProtocoleV9::transmettrePaquetIv(byte noPaquet) {
@@ -199,15 +196,7 @@ bool MGProtocoleV9::transmettrePaquetIv(byte noPaquet) {
   memcpy(_buffer + 4, &typeMessage, sizeof(typeMessage));
   memcpy(_buffer + 6, &_iv, 16);
 
-  bool transmissionOk = false;
-  byte compteurTransmissions = 0;
-  _radio->stopListening();
-  while(!transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
-    transmissionOk = _radio->write(_buffer, PAYLOAD_TAILLE_SIMPLE);
-  }
-  _radio->startListening();
-  
-  return transmissionOk;
+  return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
 }
 
 bool MGProtocoleV9::transmettrePaquetCrypte(byte taillePayload) {
@@ -240,28 +229,21 @@ bool MGProtocoleV9::transmettreRequeteDhcp() {
     memcpy(_buffer + 4, &typeMessage, sizeof(typeMessage));
     ecrireUUID(_buffer + 6);
 
-    bool transmissionOk = false;
-    byte compteurTransmissions = 0;
-    _radio->stopListening();
-    while(!transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
-      transmissionOk = _radio->write(_buffer, PAYLOAD_TAILLE_SIMPLE);
-    }
-    _radio->startListening();
-
-    return transmissionOk;
+    return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
 }
 
 bool MGProtocoleV9::transmettrePaquet(byte taillePayload) {
-  bool transmissionOk = false;
+  _transmissionOk = false;
   byte compteurTransmissions = 0;
   
-  _radio->stopListening();
-  while(!transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
-    transmissionOk = _radio->write(_buffer, taillePayload);
+  while(!_transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
+    _radio->stopListening();
+    _transmissionOk = _radio->write(_buffer, PAYLOAD_TAILLE_SIMPLE);
+    _radio->startListening();
+    delayMicroseconds(100);
   }
-  _radio->startListening();
   
-  return transmissionOk;
+  return _transmissionOk;
 }
 
 bool MGProtocoleV9::transmettrePaquetsClePublique(uint16_t noPaquet) {
@@ -320,12 +302,12 @@ bool MGProtocoleV9::transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLec
 
   _buffer[0] = VERSION_PROTOCOLE;
   _buffer[1] = _nodeId[0];
-  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
-  memcpy(_buffer + 4, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 2, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 4, &typeMessage, sizeof(typeMessage));
   memcpy(_buffer + 6, &temperature, sizeof(temperature));
   memcpy(_buffer + 8, &humidite, sizeof(humidite));
 
-  return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
+  return transmettrePaquetCrypte(PAYLOAD_TAILLE_SIMPLE);
 }
 
 bool MGProtocoleV9::transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLectureTP* fournisseur) {
@@ -350,7 +332,7 @@ bool MGProtocoleV9::transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLec
   memcpy(_buffer + 6, &temperature, sizeof(temperature));
   memcpy(_buffer + 8, &pression, sizeof(pression));
 
-  return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
+  return transmettrePaquetCrypte(PAYLOAD_TAILLE_SIMPLE);
 }
 
 bool MGProtocoleV9::transmettrePaquetLecturePower(uint16_t noPaquet, FournisseurLecturePower* fournisseur) {
@@ -385,8 +367,8 @@ bool MGProtocoleV9::transmettrePaquetLectureOneWire(uint16_t noPaquet, Fournisse
   // Format message 1W
   // Version - 1 byte
   // Node ID - 1 byte
-  // typeMessage - 2 bytes
   // noPaquet - 2 bytes
+  // typeMessage - 2 bytes
   // adresse - 8 bytes
   // data - 12 bytes
 
@@ -394,12 +376,12 @@ bool MGProtocoleV9::transmettrePaquetLectureOneWire(uint16_t noPaquet, Fournisse
 
   _buffer[0] = VERSION_PROTOCOLE;
   _buffer[1] = _nodeId[0];
-  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
-  memcpy(_buffer + 4, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 2, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 4, &typeMessage, sizeof(typeMessage));
   memcpy(_buffer + 6, fournisseur->adresse(), 8);
   memcpy(_buffer + 14, fournisseur->data(), 12);
 
-  return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
+  return transmettrePaquetCrypte(PAYLOAD_TAILLE_SIMPLE);
 }
 
 //bool MGProtocoleV9::transmettrePaquetLectureMillivolt(uint16_t noPaquet, uint32_t millivolt1, uint32_t millivolt2, uint32_t millivolt3, uint32_t millivolt4) {
@@ -423,3 +405,23 @@ bool MGProtocoleV9::transmettrePaquetLectureOneWire(uint16_t noPaquet, Fournisse
 //
 //  return transmettrePaquet();
 //}
+
+//  Recevoir information
+uint16_t MGProtocoleV9::recevoirPaquet(byte* buffer, byte bufferLen) {
+  
+  uint16_t typeMessage;
+  
+  _radio->read(buffer, bufferLen);
+  if(buffer[0] != VERSION_PROTOCOLE) {
+    // Version incorrecte, abort
+    return MSG_TYPE_PAQUET_INCONNU;
+  }
+  
+  memcpy((byte*)&typeMessage, buffer+1, 2);
+
+  if( typeMessage == MSG_TYPE_REPONSE_ACK ) {
+    _ackRecu = true;
+  }
+
+  return typeMessage;
+}

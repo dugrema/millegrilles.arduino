@@ -2,6 +2,11 @@
 #include <Arduino.h>
 
 bool ArduinoPower::isAlimentationSecteur() {
+  // Bypass pour tester comportement batterie en developpeemnt
+  #ifdef MG_DEV_TEST_BATTERIE
+    return false;
+  #endif
+  
   return _typeAlimentation == ALIMENTATION_SECTEUR;
 }
 
@@ -240,14 +245,21 @@ void ArduinoPower::resetPrescaler() {
 
 
 void ArduinoPower::sleep(byte cycles) {
-  // Le power saving est maximal - le premier byte sur le UART est perdu
-  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-
-  setPrescalerMax();
-  
-  wdt_reset(); // Reset watchdog
   byte sleepCount = 0;
 
+  // Le power saving est maximal - le premier byte sur le UART est perdu
+  setPrescalerMax();
+
+  MCUSR = 0; // clear various "reset" flags
+  wdt_reset(); // Reset watchdog
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  noInterrupts (); // timed sequence follows
+
+  // turn off brown‐out enable in software
+  MCUCR = bit (BODS) | bit (BODSE);
+  MCUCR = bit (BODS);
+  interrupts (); // guarantees next instruction executed
+  
   while( sleepCount++ < cycles) {
     /* Now enter sleep mode. */
     sleep_mode();
