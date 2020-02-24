@@ -62,97 +62,141 @@ bool MGProtocoleV9::executerDh2() {
   return succes;
 }
 
-bool MGProtocoleV9::transmettrePaquet0(uint16_t typeMessage) {
-    uint8_t transmitBuffer[PAYLOAD_TAILLE_SIMPLE];
+void MGProtocoleV9::activerCryptage() {
+  // Creer une instance en memo6:8ire
+  eax256 = new EAX<AES256>();
+}
+
+bool MGProtocoleV9::initCipher(byte* authData, byte authDataLen) {
+
+  if(eax256 == 0x0) {
+    return false; 
+  }
+
+  eax256->clear();
+    
+  if (!eax256->setKey((byte*)&_cle, eax256->keySize())) {
+      Serial.print("setKey ");
+      return false;
+  }
+
+  if (!eax256->setIV((byte*)&_iv, 16)) {
+      Serial.print("setIV ");
+      return false;
+  }
+
+  eax256->addAuthData(authData, authDataLen);
+
+  return true;
+}
+
+void MGProtocoleV9::encryptBuffer(byte* buffer, byte bufferLen) {
+  eax256->encrypt(buffer, buffer, bufferLen);
+}
+
+void MGProtocoleV9::decryptBuffer(byte* buffer, byte bufferLen) {
+  eax256->decrypt(buffer, buffer, bufferLen);
+}
+
+void MGProtocoleV9::computeTag(byte* outputTag) {
+  if(eax256 != 0x0) {
+    // Le cryptage est actif
+    eax256->computeTag(outputTag, 16);
+  } else {
+    // Remplace le buffer par 16 bytes de 0
+    memset(outputTag, 0x0, 16);
+  }
+}
+
+byte MGProtocoleV9::transmettrePaquet0(uint16_t typeMessage) {
 
     // Format message :
-    // Version (1 byte)
-    // Node ID (1 byte)
-    // TYPE MESSAGE 2 bytes
-    // UUID 16 bytes
+    // Version       -  1 byte
+    // Node ID       -  1 byte
+    // Numero paquet -  2 bytes
+    // TYPE Paquet0  -  2 bytes
+    // TYPE MESSAGE  -  2 bytes
+    // UUID          - 16 bytes
 
     uint16_t typePaquet0 = MSG_TYPE_PAQUET0;
     
     _buffer[0] = VERSION_PROTOCOLE;
     _buffer[1] = _nodeId[0];
-    memcpy(_buffer + 2, &typePaquet0, sizeof(typePaquet0));
-    memcpy(_buffer + 4, &typeMessage, sizeof(typeMessage));
-    ecrireUUID(_buffer + 6);
+    memcpy(_buffer + 2, &typePaquet0, sizeof(typePaquet0)); // Numero paquet = 0
+    memcpy(_buffer + 4, &typePaquet0, sizeof(typePaquet0));
+    memcpy(_buffer + 6, &typeMessage, sizeof(typeMessage));
+    ecrireUUID(_buffer + 8);
 
-    bool transmissionOk = false;
-    byte compteurTransmissions = 0;
-    _radio->stopListening();
-    while(!transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
-      transmissionOk = _radio->write(_buffer, PAYLOAD_TAILLE_SIMPLE);
-    }
-    _radio->startListening();
+    bool transmissionOk = transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
 
-    if(!transmissionOk) return false;  // Erreur transmission, abort
+    byte nombrePaquets = 0;
+    if(!transmissionOk) return nombrePaquets;  // Erreur transmission, abort
+    nombrePaquets++;
   
-    // Transmettre IV utilise pour crypter/decrypter message
-    transmissionOk = transmettrePaquetIv(1);
+    if( initCipher(_buffer, 22) ) { // Verifier si cryptage actif
+      // Transmettre IV utilise pour crypter/decrypter message
+      // Ce message indique implicitement que le reste de la transmission est cryptee
+      // Auth data est le paquet 0 au complet, garanti la provenance
+      transmissionOk = transmettrePaquetIv(1);
+      nombrePaquets++;
+    }
 
-    return transmissionOk;
+//    if(transmissionOk) {
+//      initCipher(_buffer, 22); // Auth data est le paquet 0 au complet, garanti la provenance
+//    }
+  
+    return nombrePaquets;
 }
 
 bool MGProtocoleV9::transmettrePaquetFin(byte noPaquet) {
   // Format message :
-  // Version (1 byte)
-  // Node ID (1 byte)
-  // TYPE MESSAGE 2 bytes
-  // Nombre paquets 2 bytes
-  // Message Tag eax256 - 16 bytes (optionnel)
+  // Version            -  1 byte
+  // Node ID            -  1 byte
+  // Numero paquet      -  2 bytes
+  // TYPE MESSAGE       -  2 bytes
+  // Nombre paquets     -  2 bytes
+  // Message Tag eax256 - 16 bytes
 
   bool transmissionOk = false;
   
-//  // IV optionnel pour message non cryptes (e.g. DHCP)
-//  transmissionOk = transmettrePaquetIv(noPaquet); // Transmettre IV
-//  noPaquet++;  // Incrementer no paquet
-  
-//  if(transmissionOk) {
-//    transmissionOk = false;
+  uint16_t typeMessage = MSG_TYPE_PAQUET_FIN;
+  uint16_t nombrePaquets = noPaquet;
 
-    uint16_t typeMessage = MSG_TYPE_PAQUET_FIN;
-    // uint16_t noPaquetInt = noPaquet;
-  
-    _buffer[0] = VERSION_PROTOCOLE;
-    _buffer[1] = _nodeId[0];
-    memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
-    memcpy(_buffer + 4, &noPaquet, sizeof(noPaquet));
+  _buffer[0] = VERSION_PROTOCOLE;
+  _buffer[1] = _nodeId[0];
+  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));  // Le numero de paquet est 0xFFFF, paquet de fin
+  memcpy(_buffer + 4, &typeMessage, sizeof(typeMessage));
+  memcpy(_buffer + 6, &nombrePaquets, sizeof(nombrePaquets));
 
-//    if(messageTag != 0x0) {
-//      memcpy(_buffer + 6, messageTag, 16);
-//    } else {
-      memcpy(_buffer + 6, 0x0, 16);  // Vider le buffer
-//    }
+  // Calculer le tag (hash) pour message crypte
+  // Note : pour les message non cryptes, le buffer est mis a 0 sur 16 bytes.
+  computeTag(_buffer + 8);
   
-    byte compteurTransmissions = 0;
-    _radio->stopListening();
-    while(!transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
-      transmissionOk = _radio->write(_buffer, PAYLOAD_TAILLE_SIMPLE);
-    }
-    _radio->startListening();
+  byte compteurTransmissions = 0;
+  _radio->stopListening();
+  while(!transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
+    transmissionOk = _radio->write(_buffer, PAYLOAD_TAILLE_SIMPLE);
+  }
+  _radio->startListening();
     
-//  }
-
   return transmissionOk;
 }
 
 bool MGProtocoleV9::transmettrePaquetIv(byte noPaquet) {
   // Format message :
-  // Version (1 byte)
-  // Node ID (1 byte)
-  // TYPE MESSAGE 2 bytes
-  // Nombre paquets 2 bytes
-  // Message Tag eax256 - 16 bytes (optionnel)
+  // Version            -  1 byte
+  // Node ID            -  1 byte
+  // Numbero Paquet     -  2 bytes
+  // TYPE MESSAGE       -  2 bytes
+  // IV                 - 16 bytes
 
   uint16_t typeMessage = MSG_TYPE_PAQUET_IV;
   uint16_t noPaquetInt = noPaquet;
 
   _buffer[0] = VERSION_PROTOCOLE;
   _buffer[1] = _nodeId[0];
-  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
-  memcpy(_buffer + 4, &noPaquetInt, sizeof(noPaquetInt));
+  memcpy(_buffer + 2, &noPaquetInt, sizeof(noPaquetInt));
+  memcpy(_buffer + 4, &typeMessage, sizeof(typeMessage));
   memcpy(_buffer + 6, &_iv, 16);
 
   bool transmissionOk = false;
@@ -166,26 +210,35 @@ bool MGProtocoleV9::transmettrePaquetIv(byte noPaquet) {
   return transmissionOk;
 }
 
-bool MGProtocoleV9::transmettrePaquetCrypte(uint16_t noPaquet) {
-  return false;
+bool MGProtocoleV9::transmettrePaquetCrypte(byte taillePayload) {
+
+  // Les 4 premiers bytes sont utilise pour routage, ils ne doivent pas etre crypte
+  byte* bufferData = (byte*)&_buffer + 4;
+
+  // Crypter buffer
+  eax256->encrypt(bufferData, bufferData, taillePayload - 4);
+
+  return transmettrePaquet(taillePayload);
+
 }
 
 bool MGProtocoleV9::transmettreRequeteDhcp() {
     uint8_t transmitBuffer[PAYLOAD_TAILLE_SIMPLE];
 
     // Format message :
-    // Version - 1 byte
-    // Node ID - 1 byte (placeholder)
-    // TYPE MESSAGE - 2 bytes
-    // No paquet - 2 bytes
-    // UUID 16 bytes
+    // Version      -  1 byte
+    // Node ID      -  1 byte (placeholder)
+    // No Paquet    -  2 bytes
+    // TYPE MESSAGE -  2 bytes
+    // UUID         - 16 bytes
 
     uint16_t typeMessage = MSG_TYPE_REQUETE_DHCP;
     
     _buffer[0] = VERSION_PROTOCOLE;
     _buffer[1] = 0;  // Blank, nodeId n'est pas connu
-    memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
-    ecrireUUID(_buffer + 4);
+    memset(_buffer + 2, 0x0, 2);  // No Paquet est 0
+    memcpy(_buffer + 4, &typeMessage, sizeof(typeMessage));
+    ecrireUUID(_buffer + 6);
 
     bool transmissionOk = false;
     byte compteurTransmissions = 0;
@@ -217,8 +270,8 @@ bool MGProtocoleV9::transmettrePaquetsClePublique(uint16_t noPaquet) {
   // Format message THP (Temperatures, Humidite, Pression Atmospherique)
   // Version - 1 byte
   // Node ID - 1 byte
-  // typeMessage - 2 bytes
   // noPaquet - 2 bytes
+  // typeMessage - 2 bytes
   // clePublique - 26 bytes / 6 bytes
 
   uint16_t typeMessage = MSG_TYPE_CLE_LOCALE_1;
@@ -226,8 +279,8 @@ bool MGProtocoleV9::transmettrePaquetsClePublique(uint16_t noPaquet) {
 
   _buffer[0] = VERSION_PROTOCOLE;
   _buffer[1] = _nodeId[0];
-  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
-  memcpy(_buffer + 4, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 2, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 4, &typeMessage, sizeof(typeMessage));
   memcpy(_buffer + 6, clePublique, 26);
 
   bool transmissionOk = transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
@@ -240,8 +293,8 @@ bool MGProtocoleV9::transmettrePaquetsClePublique(uint16_t noPaquet) {
   // Tramsettre le reste de la cle publique
   uint16_t noPaquetSuivant = noPaquet + 1;
   typeMessage = MSG_TYPE_CLE_LOCALE_2;
-  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
-  memcpy(_buffer + 4, &noPaquetSuivant, sizeof(noPaquetSuivant));
+  memcpy(_buffer + 2, &noPaquetSuivant, sizeof(noPaquetSuivant));
+  memcpy(_buffer + 4, &typeMessage, sizeof(typeMessage));
   memcpy(_buffer + 6, clePublique + 26, 6);
 
   transmissionOk = transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
@@ -255,8 +308,8 @@ bool MGProtocoleV9::transmettrePaquetLectureTH(uint16_t noPaquet, FournisseurLec
   // Format message THP (Temperatures, Humidite, Pression Atmospherique)
   // Version - 1 byte
   // Node ID - 1 byte
-  // typeMessage - 2 bytes
   // noPaquet - 2 bytes
+  // typeMessage - 2 bytes
   // temperature - 2 bytes
   // humidite - 2 bytes
 
@@ -280,7 +333,6 @@ bool MGProtocoleV9::transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLec
   // Format message TP (Temperatures,  Pression Atmospherique)
   // Version - 1 byte
   // Node ID - 1 byte
-  // typeMessage - 2 bytes
   // noPaquet - 2 bytes
   // typeMessage - 2 bytes
   // temperature - 2 bytes
@@ -293,8 +345,8 @@ bool MGProtocoleV9::transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLec
 
   _buffer[0] = VERSION_PROTOCOLE;
   _buffer[1] = _nodeId[0];
-  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
-  memcpy(_buffer + 4, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 2, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 4, &typeMessage, sizeof(typeMessage));
   memcpy(_buffer + 6, &temperature, sizeof(temperature));
   memcpy(_buffer + 8, &pression, sizeof(pression));
 
@@ -306,8 +358,8 @@ bool MGProtocoleV9::transmettrePaquetLecturePower(uint16_t noPaquet, Fournisseur
   // Format message Power
   // Version - 1 byte
   // Node ID - 1 byte
-  // typeMessage - 2 bytes
   // noPaquet - 2 bytes
+  // typeMessage - 2 bytes
   // millivolt - 4 bytes
   // reservePct - 1 bytes
   // alerte - 1 bytes
@@ -320,13 +372,13 @@ bool MGProtocoleV9::transmettrePaquetLecturePower(uint16_t noPaquet, Fournisseur
 
   _buffer[0] = VERSION_PROTOCOLE;
   _buffer[1] = _nodeId[0];
-  memcpy(_buffer + 2, &typeMessage, sizeof(typeMessage));
-  memcpy(_buffer + 4, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 2, &noPaquet, sizeof(noPaquet));
+  memcpy(_buffer + 4, &typeMessage, sizeof(typeMessage));
   memcpy(_buffer + 6, &millivolt, sizeof(millivolt));
   memcpy(_buffer + 10, &reservePct, sizeof(reservePct));
   memcpy(_buffer + 11, &alerte, sizeof(alerte));
 
-  return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE);
+  return transmettrePaquetCrypte(PAYLOAD_TAILLE_SIMPLE);
 }
 
 bool MGProtocoleV9::transmettrePaquetLectureOneWire(uint16_t noPaquet, FournisseurLectureOneWire* fournisseur) {

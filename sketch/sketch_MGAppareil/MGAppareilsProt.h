@@ -36,9 +36,10 @@
 #define MSG_TYPE_CLE_DISTANTE_2 0x7
 #define MSG_TYPE_NOUVELLE_CLE   0x8
 
-#define MSG_TYPE_PAQUET0    0x0000
-#define MSG_TYPE_PAQUET_IV  0xFFFE
-#define MSG_TYPE_PAQUET_FIN 0xFFFF
+#define MSG_TYPE_PAQUET0       0x0000
+#define MSG_TYPE_PAQUET_CRYPTE 0xFF00
+#define MSG_TYPE_PAQUET_IV     0xFFFE
+#define MSG_TYPE_PAQUET_FIN    0xFFFF
 
 #define MSG_TYPE_LECTURES_COMBINEES 0x101
 #define MSG_TYPE_LECTURE_TH 0x102
@@ -82,7 +83,6 @@ class FournisseurLectureOneWire {
 class MGProtocoleV9 {
 
   public:
-    //MGProtocoleV8(const byte* uuid, RF24* radio, const byte* nodeId) {
     MGProtocoleV9(const byte* uuid, RF24* radio, const byte* nodeId) {
       _uuid = uuid;
       _nodeId = nodeId;
@@ -94,13 +94,19 @@ class MGProtocoleV9 {
     byte* executerDh1();  // DH passe 1 pour generer cle privee. Retourne byte* vers cle publique.
     bool executerDh2();   // DH passe 2 pour extraire cle secrete. Retourne false si le processus a echoue.
 
+    void activerCryptage();
+    bool initCipher(byte* authData, byte authDataLen); // Reinitialise cipher avec iv et cle existants
+    void encryptBuffer(byte* buffer, byte bufferLen);  // Encrypte buffer, resultat mis dans meme buffer
+    void decryptBuffer(byte* buffer, byte bufferLen);  // Decrypte buffer, resultat mis dans meme buffer
+    void computeTag(byte* outputTag);                  // Retourne le tag (hash) du message
+
     void lireBeaconDhcp(byte* data, byte* adresseServeur);
     byte lireReponseDhcp(byte* data, byte* adresseNoeud);
 
     bool transmettreRequeteDhcp();
-    bool transmettrePaquet0(uint16_t typeMessage);
+    byte transmettrePaquet0(uint16_t typeMessage);
     bool transmettrePaquetFin(byte noPaquet);
-    bool transmettrePaquetCrypte(uint16_t noPaquet);
+    bool transmettrePaquetCrypte(byte taillePaquet);
     bool transmettrePaquetsClePublique(uint16_t noPaquet);
 
     // Paquets classe SenseursPassifs
@@ -116,6 +122,7 @@ class MGProtocoleV9 {
     const byte* _uuid;
     const byte* _nodeId;
     RF24* _radio;
+    EAX<AES256>* eax256 = 0x0;
     
     byte _buffer[32]; // 32 bytes, max pour RF24
     byte _cle[32];  // Buffer de 32 bytes pour stocker des cles (publique durant echange ed25519 et secrete une fois pairing complete)

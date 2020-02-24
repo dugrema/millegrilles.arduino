@@ -254,13 +254,17 @@ bool transmettrePaquets() {
     Serial.println(F("transmettrePaquets: echec, besoin nouveau IV"));
     return false; // On doit changer le IV avant de transmettre
   }
-  
-  // Debut de la transmission, envoit 2 paquets (0 et IV)
-  transmissionOk = prot9.transmettrePaquet0(MSG_TYPE_LECTURES_COMBINEES);
-  if(!transmissionOk) return false;
 
-  ivUsed = true;  // Le IV a ete transmis avec succes, on le considere comme consomme
-  byte compteurPaquet = 2;  // Fourni le numero du paquet courant
+  // Debut de la transmission, envoit 2 paquets (0 et IV)
+  byte compteurPaquet = prot9.transmettrePaquet0(MSG_TYPE_LECTURES_COMBINEES);
+  if(compteurPaquet == 0) {
+    transmissionOk = false;
+    return false;
+  }
+
+  if(compteurPaquet > 1) {
+    ivUsed = true;  // Le IV a ete transmis avec succes, on le considere comme consomme
+  }
 
   // Dalsemi OneWire (1W)
   #ifdef BUS_MODE_ONEWIRE
@@ -283,7 +287,7 @@ bool transmettrePaquets() {
   // Power info
   transmissionOk = prot9.transmettrePaquetLecturePower(compteurPaquet++, &power);
 
-  // Paquet de fin avec IV et tag
+  // Paquet de fin avec tag (hash)
   transmissionOk = prot9.transmettrePaquetFin(compteurPaquet);
 
   return transmissionOk;
@@ -291,13 +295,13 @@ bool transmettrePaquets() {
 
 bool transmettreClePublique() {
   Serial.println(F("Transmettre cle publique"));
+  
   // Debut de la transmission
-  transmissionOk = prot9.transmettrePaquet0(MSG_TYPE_NOUVELLE_CLE);
+  byte compteurPaquet  = prot9.transmettrePaquet0(MSG_TYPE_NOUVELLE_CLE);
+  if(compteurPaquet == 0) return false;
+
+  bool transmissionOk = prot9.transmettrePaquetsClePublique(compteurPaquet);
   if(!transmissionOk) return false;
-
-  byte compteurPaquet = 1;  // Fourni le numero du paquet courant
-
-  transmissionOk = prot9.transmettrePaquetsClePublique(compteurPaquet);
   compteurPaquet += 2; // 2 paquets transmis
 
   Serial.println(F("Transmettre paquet fine"));
@@ -430,6 +434,9 @@ void recevoirClePubliqueServeur() {
       printArray(prot9.getCleBuffer(), 32);
 
       modePairing = PAIRING_SERVEUR_CLE;
+
+      // Activer le cryptage pour tous les messages subsequents
+      prot9.activerCryptage();
       
 //    } else {
 //      Serial.println(F("Recue 2e partie de la cle mais 1ere pas recue"));
