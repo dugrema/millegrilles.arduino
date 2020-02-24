@@ -43,6 +43,7 @@
 #define RF24_CE_PIN 7
 #define RF24_CSN_PIN 8
 #define RF24_IRQ_PIN 3
+#define RF24_RETRANSMISSIONS 15
 // ------------------------------------------------------
 
 #define NODE_ID_DEFAULT 1
@@ -57,7 +58,7 @@
 
 // ------------------------------------------------------
 // Power
-#define CYCLES_SOMMEIL 7
+#define CYCLES_SOMMEIL 2
 #define BATTERY_PIN_VCC 0
 // #define BATTERY_PIN_VCC A0
 // ------------------------------------------------------

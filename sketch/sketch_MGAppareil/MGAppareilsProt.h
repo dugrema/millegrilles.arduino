@@ -47,6 +47,14 @@
 #define MSG_TYPE_LECTURE_TP 0x103
 #define MSG_TYPE_LECTURE_POWER 0x104
 #define MSG_TYPE_LECTURE_ONEWIRE 0x105
+#define MSG_TYPE_LECTURE_ANTENNE 0x106
+
+struct StatTransmissions {
+  uint8_t forceSignalPct;
+  uint16_t nombreTransmissions;
+  uint16_t nombreErreurs;
+  byte nombrePaquets;
+};
 
 class FournisseurLectureTH {
   public:
@@ -81,7 +89,14 @@ class FournisseurLectureOneWire {
     virtual byte* data();  // byte[12]
 };
 
-class MGProtocoleV9 {
+class FournisseurLectureAntenne {
+  public:
+    virtual byte pctSignal();     // byte
+    virtual byte forceEmetteur(); // byte
+    virtual byte canal();         // byte
+};
+
+class MGProtocoleV9 : public FournisseurLectureAntenne {
 
   public:
     MGProtocoleV9(const byte* uuid, RF24* radio, const byte* nodeId) {
@@ -89,6 +104,11 @@ class MGProtocoleV9 {
       _nodeId = nodeId;
       _radio = radio;
     };
+
+    // Implementation methodes FournisseurLectureAntenne
+    byte pctSignal();
+    byte forceEmetteur();
+    byte canal();
 
     byte* getCleBuffer(); // Retourne le buffer pour la cle - utiliser pour setter la cle publique distante ou cle secrete
     byte* getIvBuffer(); // Retourne le buffer pour la cle - utiliser pour setter la cle publique distante ou cle secrete
@@ -114,8 +134,11 @@ class MGProtocoleV9 {
     bool transmettrePaquetLectureTP(uint16_t noPaquet, FournisseurLectureTP* fournisseur);
     bool transmettrePaquetLecturePower(uint16_t noPaquet, FournisseurLecturePower* fournisseur);
     bool transmettrePaquetLectureOneWire(uint16_t noPaquet, FournisseurLectureOneWire* fournisseur);
+    bool transmettrePaquetLectureAntenne(uint16_t noPaquet, FournisseurLectureAntenne* fournisseur);
     bool isTransmissionOk();
     bool isAckRecu();
+
+    void loop();
 
     // Recevoir paquet
     uint16_t recevoirPaquet(byte* buffer, byte bufferLen);  // Recoit un paquet, insere donnees dans le buffer au besoin. Retourne le type de paquet recu.
@@ -128,6 +151,12 @@ class MGProtocoleV9 {
     const byte* _nodeId;
     RF24* _radio;
     EAX<AES256>* eax256 = 0x0;
+    StatTransmissions stats = {
+      .forceSignalPct = 0,
+      .nombreTransmissions = 0,
+      .nombreErreurs = 0,
+      .nombrePaquets = 0
+    };
     
     // byte _buffer[32]; // 32 bytes, max pour RF24
     byte _cle[32];  // Buffer de 32 bytes pour stocker des cles (publique durant echange ed25519 et secrete une fois pairing complete)

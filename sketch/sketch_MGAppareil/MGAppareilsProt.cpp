@@ -1,6 +1,72 @@
 #include "MGAppareilsProt.h"
 #include <Arduino.h>
 
+void MGProtocoleV9::loop() {
+
+  // Ajuster le niveau PA de la radio
+  if( stats.nombrePaquets > 16 || stats.nombreTransmissions > 256 ) {
+    
+    uint8_t currentPALevel = _radio->getPALevel();
+
+    #ifdef LOGGING_DEV
+      Serial.print(F("Nb erreurs : "));
+      Serial.print(stats.nombreErreurs);
+      Serial.print(F(", nb transmissions : "));
+      Serial.println(stats.nombreTransmissions);
+    #endif
+    
+    float pctEchec = float(stats.nombreErreurs) / float(stats.nombreTransmissions);
+    stats.forceSignalPct = 100 - byte(pctEchec * 100.0f);  // Inverser valeur (100 - pct erreur -> force signal)
+    
+    if( pctEchec > 0.85f && currentPALevel < RF24_PA_MAX ) {
+      
+      // Augmenter la puissance d'emission
+      _radio->setPALevel(++currentPALevel);
+      
+      #ifdef LOGGING_DEV
+        Serial.print(F("Augmentation puissance emission. "));
+      #endif
+      
+    } else if( pctEchec < 0.08f && currentPALevel > RF24_PA_MIN ) { 
+      
+      // Diminuer la puissance d'emission
+      _radio->setPALevel(--currentPALevel);
+
+      #ifdef LOGGING_DEV
+        Serial.print(F("Reduction puissance emission. "));
+      #endif
+      
+    } 
+
+    // Reset stats
+    stats.nombreTransmissions = 0;
+    stats.nombreErreurs = 0;
+    stats.nombrePaquets = 0;
+
+    #ifdef LOGGING_DEV
+      Serial.print(F("Transmission Erreur "));
+      Serial.print(stats.forceSignalPct);
+      Serial.print(F("%, PA Level : "));
+      Serial.println(currentPALevel);
+    #endif
+    
+  }
+  
+}
+
+byte MGProtocoleV9::pctSignal() {
+  return stats.forceSignalPct;
+}
+
+byte MGProtocoleV9::forceEmetteur() {
+  return _radio->getPALevel();
+}
+
+byte MGProtocoleV9::canal() {
+  return _radio->getChannel();
+}
+
+
 void MGProtocoleV9::lireBeaconDhcp(byte* data, byte* adresseServeur) {
 
   // Init 2 premiers bytes a 0 (serveur a une adresse de 24 bits)
@@ -183,7 +249,7 @@ bool MGProtocoleV9::transmettrePaquetFin(byte noPaquet) {
 
 bool MGProtocoleV9::transmettrePaquetIv(byte noPaquet) {
   // Format message :
-  // Version            -  1 byte
+  // Version            -  1 byter
   // Node ID            -  1 byte
   // Numbero Paquet     -  2 bytes
   // TYPE MESSAGE       -  2 bytes
@@ -239,10 +305,27 @@ bool MGProtocoleV9::transmettreRequeteDhcp() {
 bool MGProtocoleV9::transmettrePaquet(byte taillePayload, byte* buffer) {
   _transmissionOk = false;
   byte compteurTransmissions = 0;
+
+  // Compter le nombre de paquets depuis depuis reset stats
+  stats.nombrePaquets++;
   
   while(!_transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
     _radio->stopListening();
     _transmissionOk = _radio->write(buffer, PAYLOAD_TAILLE_SIMPLE, (byte*)&buffer);
+
+    uint8_t retransmissions = _radio->getARC();
+    #ifdef LOGGING_DEV
+      Serial.print("Retransmissions : "); Serial.println(retransmissions);
+    #endif
+    stats.nombreTransmissions += RF24_RETRANSMISSIONS;  // retransmissions + 1;
+    stats.nombreErreurs += retransmissions;
+
+//    // Cumuler stats de transmission pour diagnostic
+//    stats.nombreTransmissions++;
+//    if( ! _transmissionOk ) {
+//      stats.nombreErreurs++;
+//    }
+    
     _radio->startListening();
     delayMicroseconds(100);
   }
@@ -389,6 +472,30 @@ bool MGProtocoleV9::transmettrePaquetLectureOneWire(uint16_t noPaquet, Fournisse
   memcpy(buffer + 4, &typeMessage, sizeof(typeMessage));
   memcpy(buffer + 6, fournisseur->adresse(), 8);
   memcpy(buffer + 14, fournisseur->data(), 12);
+
+  return transmettrePaquetCrypte(PAYLOAD_TAILLE_SIMPLE, (byte*)&buffer);
+}
+
+bool MGProtocoleV9::transmettrePaquetLectureAntenne(uint16_t noPaquet, FournisseurLectureAntenne* fournisseur) {
+  // Format message Antenne
+  // Version       - 1 byte
+  // Node ID       - 1 byte
+  // noPaquet      - 2 bytes
+  // typeMessage   - 2 bytes
+  // pctSignal     - 1 byte
+  // forceEmetteur - 1 byte
+  // canal         - 1 byte
+
+  uint16_t typeMessage = MSG_TYPE_LECTURE_ANTENNE;
+  byte buffer[32];
+
+  buffer[0] = VERSION_PROTOCOLE;
+  buffer[1] = _nodeId[0];
+  memcpy(buffer + 2, &noPaquet, sizeof(noPaquet));
+  memcpy(buffer + 4, &typeMessage, sizeof(typeMessage));
+  buffer[6] = fournisseur->pctSignal();
+  buffer[7] = fournisseur->forceEmetteur();
+  buffer[8] = fournisseur->canal();
 
   return transmettrePaquetCrypte(PAYLOAD_TAILLE_SIMPLE, (byte*)&buffer);
 }

@@ -127,10 +127,10 @@ void setup() {
   radio.begin();
   radio.setChannel(RADIO_CANAL);
   radio.setAutoAck(true);
-  radio.setRetries(15, 1);
+  radio.setRetries(4, RF24_RETRANSMISSIONS);
   radio.setDataRate(RF24_250KBPS);
   radio.setCRCLength(RF24_CRC_16);
-  radio.setPALevel(RF24_PA_LOW);
+  radio.setPALevel(RF24_PA_MIN);  // Commencer avec emission MIN, va etre ajuste
 
   // Garder la radio hors ligne pour generer cle privee (au besoin)
   radio.powerDown();
@@ -168,6 +168,8 @@ void loop() {
 
   // Perform regular housekeeping on the random number generator.
   RNG.loop();
+  // Entretien radio/protocole
+  prot9.loop();
 
   bypassSleep = false;
 
@@ -297,6 +299,9 @@ bool transmettrePaquets() {
 
   // Power info
   prot9.transmettrePaquetLecturePower(compteurPaquet++, &power);
+
+  // Antenne info
+  prot9.transmettrePaquetLectureAntenne(compteurPaquet++, &prot9);
 
   // Paquet de fin avec tag (hash)
   prot9.transmettrePaquetFin(compteurPaquet);
