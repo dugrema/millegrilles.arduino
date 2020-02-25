@@ -383,7 +383,7 @@ void ecouterReseau() {
   case PAIRING_PAS_INIT:
   default:
     // Initialiser la cle, besoin de 32 bytes random
-    if(RNG.available(48)) {
+    if(RNG.available(32)) {
 
       #ifdef LOGGING_DEV
         Serial.println(F("Init cle DH"));

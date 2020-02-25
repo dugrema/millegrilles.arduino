@@ -6,11 +6,11 @@
 
 // Modes pour debugger ou travail developpement
 // #define MG_DEV
-// #define MG_INT
+#define MG_INT
 
 // #define LOGGING_DEV
 
-#define MG_DEV_TEST_BATTERIE
+// #define MG_DEV_TEST_BATTERIE
 
 // ------------------------------------------------------
 // Appareils
