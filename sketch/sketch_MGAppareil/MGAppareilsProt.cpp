@@ -326,7 +326,7 @@ bool MGProtocoleV9::transmettrePaquet(byte taillePayload, byte* buffer) {
   // Compter le nombre de paquets depuis depuis reset stats
   stats.nombrePaquets++;
   
-  //while(!_transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
+  while(!_transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
     _radio->stopListening();
     _transmissionOk = _radio->write(buffer, PAYLOAD_TAILLE_SIMPLE, (byte*)&buffer);
 
@@ -344,8 +344,8 @@ bool MGProtocoleV9::transmettrePaquet(byte taillePayload, byte* buffer) {
 //    }
     
     _radio->startListening();
-  //  delayMicroseconds(100);
-  //}
+    delayMicroseconds(150);
+  }
   
   return _transmissionOk;
 }
