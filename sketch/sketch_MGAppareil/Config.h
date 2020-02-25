@@ -10,7 +10,7 @@
 
 #define LOGGING_DEV
 
-// #define MG_DEV_TEST_BATTERIE
+#define MG_DEV_TEST_BATTERIE
 
 // ------------------------------------------------------
 // Appareils

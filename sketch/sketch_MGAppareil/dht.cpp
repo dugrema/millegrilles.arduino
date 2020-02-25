@@ -196,8 +196,11 @@ void MilleGrillesDHT::lire() {
 
     dht_read_ok = _dht_chk == DHTLIB_OK;
     if( !dht_read_ok ) {
-      Serial.print(F("DHT Error:"));
-      Serial.println(DHT_READ_ATTEMPTS - dht_read_attempt - 1);
+      #ifdef LOGGING_DEV
+        Serial.print(F("DHT Error:"));
+        Serial.println(DHT_READ_ATTEMPTS - dht_read_attempt - 1);
+      #endif
+      
       delay(1000);
     }
     
@@ -270,4 +273,3 @@ uint16_t MilleGrillesDHT::humidite() {
 //
 // END OF FILE
 //
-

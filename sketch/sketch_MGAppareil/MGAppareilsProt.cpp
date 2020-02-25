@@ -27,7 +27,7 @@ void MGProtocoleV9::loop() {
         Serial.print(F("Augmentation puissance emission. "));
       #endif
       
-    } else if( pctEchec < 0.08f && currentPALevel > RF24_PA_MIN ) { 
+    } else if( pctEchec < 0.15f && currentPALevel > RF24_PA_MIN ) { 
       
       // Diminuer la puissance d'emission
       _radio->setPALevel(--currentPALevel);
@@ -499,28 +499,6 @@ bool MGProtocoleV9::transmettrePaquetLectureAntenne(uint16_t noPaquet, Fournisse
 
   return transmettrePaquetCrypte(PAYLOAD_TAILLE_SIMPLE, (byte*)&buffer);
 }
-
-//bool MGProtocoleV9::transmettrePaquetLectureMillivolt(uint16_t noPaquet, uint32_t millivolt1, uint32_t millivolt2, uint32_t millivolt3, uint32_t millivolt4) {
-//
-//  // Format message millivol - supporte jusqu'a 4 milliards de volts
-//  // noPaquet - 2 bytes
-//  // typeMessage - 2 bytes
-//  // millivolt 1 - 4 bytes
-//  // millivolt 2 - 4 bytes
-//  // millivolt 3 - 4 bytes
-//  // millivolt 4 - 4 bytes
-//
-//  uint16_t typeMessage = 0x104;
-//
-//  memcpy(buffer + 0, &noPaquet, sizeof(noPaquet));
-//  memcpy(buffer + 2, &typeMessage, sizeof(typeMessage));
-//  memcpy(buffer + 4, &millivolt1, sizeof(millivolt1));
-//  memcpy(buffer + 8, &millivolt2, sizeof(millivolt2));
-//  memcpy(buffer + 12, &millivolt3, sizeof(millivolt3));
-//  memcpy(buffer + 16, &millivolt4, sizeof(millivolt4));
-//
-//  return transmettrePaquet();
-//}
 
 //  Recevoir information
 uint16_t MGProtocoleV9::recevoirPaquet(byte* buffer, byte bufferLen) {

@@ -43,8 +43,10 @@ void OneWireHandler::lire() {
     // lire_temperature();
   }
   else {
-    Serial.print("Device family is not recognized: 0x");
-    Serial.println(_addr[0],HEX);
+    #ifdef LOGGING_DEV
+      Serial.print("Device family is not recognized: 0x");
+      Serial.println(_addr[0],HEX);
+    #endif
     return;
   }
 
@@ -75,37 +77,3 @@ bool OneWireHandler::lireData(int attente) {
 //  Serial.print( OneWire::crc8( _data, 8), HEX);
 //  Serial.println();
 }
-
-//int OneWireHandler::lire_temperature() {
-//  int temperature = NO_TEMP;
-//  int HighByte, LowByte, TReading, SignBit, Tc_100, Whole, Fract;
-//
-//  LowByte = _data[0];
-//  HighByte = _data[1];
-//  TReading = (HighByte << 8) + LowByte;
-//  SignBit = TReading & 0x8000;  // test most sig bit
-//  if (SignBit) // negative
-//  {
-//    TReading = (TReading ^ 0xffff) + 1; // 2's comp
-//  }
-//  Tc_100 = (6 * TReading) + TReading / 4;    // multiply by (100 * 0.0625) or 6.25
-//
-//  Whole = Tc_100 / 100;  // separate off the whole and fractional portions
-//  Fract = Tc_100 % 100;
-//
-//  if (SignBit) // If its negative
-//  {
-//     Serial.print("-");
-//  }
-//  Serial.print(Whole);
-//  Serial.print(".");
-//  if (Fract < 10)
-//  {
-//     Serial.print("0");
-//  }
-//  Serial.println(Fract);
-//
-//  return temperature;
-//}
-
-

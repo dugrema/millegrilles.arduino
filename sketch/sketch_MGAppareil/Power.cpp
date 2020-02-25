@@ -121,15 +121,24 @@ void ArduinoPower::_calculerReservePct() {
     byte typeDetecte = ALIMENTATION_INCONNU;
     if (_lectureVcc >= 3150 && _lectureVcc <= 3425) {
       typeDetecte = ALIMENTATION_SECTEUR;
-      Serial.print(F("Alimentation secteur "));
+      #ifdef LOGGING_DEV
+        Serial.print(F("Alimentation secteur "));
+      #endif
     } else if(_lectureVcc > 3425) {
       typeDetecte = ALIMENTATION_BATT_LITHIUM;
-      Serial.print(F("Alimentation lithium "));
+      #ifdef LOGGING_DEV
+        Serial.print(F("Alimentation lithium "));
+      #endif
     } else {
       typeDetecte = ALIMENTATION_BATT_AA;
-      Serial.print(F("Alimentation AA "));
+      #ifdef LOGGING_DEV
+        Serial.print(F("Alimentation AA "));
+      #endif
     }
-    Serial.println(_lectureVcc);
+
+    #ifdef LOGGING_DEV
+      Serial.println(_lectureVcc);
+    #endif
 
     // Augmenter le compte du nombre de confirmations
     if( _typeAlimentation == ALIMENTATION_INCONNU ) {
@@ -138,10 +147,12 @@ void ArduinoPower::_calculerReservePct() {
       _nbLecturesVerificationTypeCourant = 1;
     } else if(_typeAlimentation == typeDetecte) {
       _nbLecturesVerificationTypeCourant++;
-      Serial.print(F("Confirmation type "));
-      Serial.print(_typeAlimentation);
-      Serial.print(F(" nb confirmations: "));
-      Serial.println(_nbLecturesVerificationTypeCourant);
+      #ifdef LOGGING_DEV
+        Serial.print(F("Confirmation type "));
+        Serial.print(_typeAlimentation);
+        Serial.print(F(" nb confirmations: "));
+        Serial.println(_nbLecturesVerificationTypeCourant);
+      #endif
     } else {
       _typeAlimentation = ALIMENTATION_INCONNU;
     }

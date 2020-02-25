@@ -80,8 +80,10 @@
 
 void manual_config::lire_configuration() {
 
-  Serial.println("");
-  Serial.println("Lecture de la configuration du EEPROM");
+  #ifdef LOGGING_DEV
+    Serial.println("");
+    Serial.println("Lecture de la configuration du EEPROM");
+  #endif
 
   // EEPROM.get(ADDRESS_ADDRESSSINK, addressSink);
   EEPROM.get(ADDRESS_SENSEUR, senseur);
@@ -96,15 +98,17 @@ void manual_config::lire_configuration() {
 
 void manual_config::enregistrer_configuration() {
 
-    // EEPROM.put(ADDRESS_ADDRESSSINK, addressSink);
-    EEPROM.put(ADDRESS_SENSEUR, senseur);
-    // EEPROM.put(ADDRESS_RF24_CE_PIN, RF24_CE_PIN);
-    // EEPROM.put(ADDRESS_RF24_CSN_PIN, RF24_CSN_PIN);
-    // EEPROM.put(ADDRESS_DHT_PIN, DHT_PIN);
-    EEPROM.put(ADDRESS_DHT_TYPE, DHT_TYPE);
-    EEPROM.put(ADDRESS_BATT_PIN, battery_pin);
+  // EEPROM.put(ADDRESS_ADDRESSSINK, addressSink);
+  EEPROM.put(ADDRESS_SENSEUR, senseur);
+  // EEPROM.put(ADDRESS_RF24_CE_PIN, RF24_CE_PIN);
+  // EEPROM.put(ADDRESS_RF24_CSN_PIN, RF24_CSN_PIN);
+  // EEPROM.put(ADDRESS_DHT_PIN, DHT_PIN);
+  EEPROM.put(ADDRESS_DHT_TYPE, DHT_TYPE);
+  EEPROM.put(ADDRESS_BATT_PIN, battery_pin);
 
+  #ifdef LOGGING_DEV
     Serial.println("Configuration sauvegardee");
+  #endif
     
 }
 
@@ -166,5 +170,3 @@ void manual_config::afficher_configuration() {
 //   return valeur;
 //  
 //}
-
-

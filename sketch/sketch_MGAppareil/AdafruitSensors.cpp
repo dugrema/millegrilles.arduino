@@ -3,7 +3,7 @@
 void MilleGrillesAdafruitSensors::begin() {
    _bmpActif = _bmp.begin();
    if(!_bmpActif) {
-    Serial.println(F("BMP: Erreur, desactive."));
+     Serial.println(F("BMP: Erreur, desactive."));
    }
 }
 
@@ -47,5 +47,3 @@ int MilleGrillesAdafruitSensors::temperature() {
 uint16_t MilleGrillesAdafruitSensors::pression() {
   return _pression;
 }
-
-
