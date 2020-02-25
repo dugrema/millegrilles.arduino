@@ -6,7 +6,7 @@
 
 // Modes pour debugger ou travail developpement
 // #define MG_DEV
-#define MG_INT
+// #define MG_INT
 
 // #define LOGGING_DEV
 
