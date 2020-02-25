@@ -8,7 +8,7 @@
 #define MG_DEV
 // #define MG_INT
 
-#define LOGGING_DEV
+// #define LOGGING_DEV
 
 #define MG_DEV_TEST_BATTERIE
 
@@ -49,6 +49,7 @@
 #define NODE_ID_DEFAULT 1
 #define PIN_LED 6
 #define RANDOM_LOWENTROPY_MAXCOUNT 32
+#define PAQUETS_ECHECS_CONSECUTIFS_RESET 6
 
 // Version du protocole de transmission NRF24
 #define VERSION_PROTOCOLE 9
@@ -58,7 +59,7 @@
 
 // ------------------------------------------------------
 // Power
-#define CYCLES_SOMMEIL 2
+#define CYCLES_SOMMEIL 7
 #define BATTERY_PIN_VCC 0
 // #define BATTERY_PIN_VCC A0
 // ------------------------------------------------------

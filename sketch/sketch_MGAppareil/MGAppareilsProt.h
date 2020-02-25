@@ -54,6 +54,7 @@ struct StatTransmissions {
   uint16_t nombreTransmissions;
   uint16_t nombreErreurs;
   byte nombrePaquets;
+  byte nombreCyclesAbortConsecutifs;
 };
 
 class FournisseurLectureTH {
@@ -137,6 +138,8 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     bool transmettrePaquetLectureAntenne(uint16_t noPaquet, FournisseurLectureAntenne* fournisseur);
     bool isTransmissionOk();
     bool isAckRecu();
+    byte nombreCyclesAbortConsecutifs();  // Retourne le nombre de transmissions consecutives qui n'ont pas finit avec un ACK
+    void resetNombreCyclesAbortConsecutifs();
 
     void loop();
 
@@ -155,7 +158,8 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
       .forceSignalPct = 0,
       .nombreTransmissions = 0,
       .nombreErreurs = 0,
-      .nombrePaquets = 0
+      .nombrePaquets = 0,
+      .nombreCyclesAbortConsecutifs = 0
     };
     
     // byte _buffer[32]; // 32 bytes, max pour RF24

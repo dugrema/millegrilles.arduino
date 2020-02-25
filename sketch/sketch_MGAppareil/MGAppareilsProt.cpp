@@ -44,7 +44,7 @@ void MGProtocoleV9::loop() {
     stats.nombrePaquets = 0;
 
     #ifdef LOGGING_DEV
-      Serial.print(F("Transmission Erreur "));
+      Serial.print(F("Transmission signal "));
       Serial.print(stats.forceSignalPct);
       Serial.print(F("%, PA Level : "));
       Serial.println(currentPALevel);
@@ -64,6 +64,14 @@ byte MGProtocoleV9::forceEmetteur() {
 
 byte MGProtocoleV9::canal() {
   return _radio->getChannel();
+}
+
+byte MGProtocoleV9::nombreCyclesAbortConsecutifs() {
+  return stats.nombreCyclesAbortConsecutifs;
+}
+
+void MGProtocoleV9::resetNombreCyclesAbortConsecutifs() {
+  stats.nombreCyclesAbortConsecutifs = 0;
 }
 
 
@@ -112,6 +120,13 @@ bool MGProtocoleV9::isAckRecu() {
 
 byte* MGProtocoleV9::executerDh1() {
   // Creer un buffer temporaire pour sauvegarder la cle privee
+
+  if(eax256 != 0x0) {
+    // Liberer memoire
+    delete eax256;
+    eax256 = 0x0;
+  }
+  
   _bufferTemp = new byte[32];
 
   Curve25519::dh1(_cle, _bufferTemp);
@@ -191,6 +206,8 @@ byte MGProtocoleV9::transmettrePaquet0(uint16_t typeMessage) {
     // TYPE Paquet0  -  2 bytes
     // TYPE MESSAGE  -  2 bytes
     // UUID          - 16 bytes
+
+    stats.nombreCyclesAbortConsecutifs++;  // Va etre resette des qu'un paquet ACK est recu
 
     uint16_t typePaquet0 = MSG_TYPE_PAQUET0;
     byte buffer[32];
@@ -309,7 +326,7 @@ bool MGProtocoleV9::transmettrePaquet(byte taillePayload, byte* buffer) {
   // Compter le nombre de paquets depuis depuis reset stats
   stats.nombrePaquets++;
   
-  while(!_transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
+  //while(!_transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
     _radio->stopListening();
     _transmissionOk = _radio->write(buffer, PAYLOAD_TAILLE_SIMPLE, (byte*)&buffer);
 
@@ -327,8 +344,8 @@ bool MGProtocoleV9::transmettrePaquet(byte taillePayload, byte* buffer) {
 //    }
     
     _radio->startListening();
-    delayMicroseconds(100);
-  }
+  //  delayMicroseconds(100);
+  //}
   
   return _transmissionOk;
 }
@@ -515,6 +532,7 @@ uint16_t MGProtocoleV9::recevoirPaquet(byte* buffer, byte bufferLen) {
 
   if( typeMessage == MSG_TYPE_REPONSE_ACK ) {
     _ackRecu = true;
+    stats.nombreCyclesAbortConsecutifs = 0;  // Reset nombre de transmission abort
   }
 
   return typeMessage;

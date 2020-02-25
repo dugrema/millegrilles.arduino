@@ -463,6 +463,17 @@ bool networkProcess() {
     // Mettre a jour le IV
     genererIv();
   }
+
+  if( modePairing != PAIRING_PAS_INIT && prot9.nombreCyclesAbortConsecutifs() > PAQUETS_ECHECS_CONSECUTIFS_RESET ) {
+    // Le serveur ne repond plus, possiblement parce qu'il n'a plus la cle. 
+    // On reinit le processus (DHCP, echange cle)
+    modePairing = PAIRING_PAS_INIT;
+    prot9.resetNombreCyclesAbortConsecutifs();
+
+    #ifdef LOGGING_DEV
+      Serial.println(F("Reinit pairing - serveur ne repond pas"));
+    #endif
+  }
   
   return true;
   
@@ -547,6 +558,7 @@ void recevoirClePubliqueServeur(byte* data) {
       #endif
 
       modePairing = PAIRING_SERVEUR_CLE;
+      lectureDue = true;  // Preparer la premiere transmission de contenu
 
       // Activer le cryptage pour tous les messages subsequents
       prot9.activerCryptage();
@@ -654,7 +666,11 @@ bool assignerAdresseDHCPRecue(byte* data) {
     #endif
 
     radio.openWritingPipe(adresseServeur);
-    radio.printDetails();
+    
+    #ifdef LOGGING_DEV
+      radio.printDetails();
+    #endif
+    
     radio.stopListening();
     bool transmisOk = prot9.transmettreRequeteDhcp();
     radio.startListening();
