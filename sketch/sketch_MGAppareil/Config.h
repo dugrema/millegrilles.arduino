@@ -5,10 +5,10 @@
 #include <RF24.h>
 
 // Modes pour debugger ou travail developpement
-// #define MG_DEV
+#define MG_DEV
 // #define MG_INT
 
-// #define LOGGING_DEV
+#define LOGGING_DEV
 
 // #define MG_DEV_TEST_BATTERIE
 
@@ -23,8 +23,8 @@
 #define ONE_WIRE_PIN 10
 
 // Senseur DHT
-#define DHTPIN 4
-#define DHTTYPE 22
+// #define DHTPIN 4
+// #define DHTTYPE 22
 // ------------------------------------------------------
 
 // ------------------------------------------------------
@@ -77,8 +77,11 @@
 // Adresse du serveur (pairing) - 3 bytes (24 bits) - 0x00B a 0x00D
 #define EEPROM_ADRESSE_SERVEUR 0x00B
 
+// Etat cle secrete - 1 byte - 0x01 Cle Secrete prete
+#define EEPROM_CLE_PRIVEE_ETAT 0x00E
+
 // Cle secrete - 32 bytes - 0x020 a 0x03F
-#define EEPROM_CLE_SECRETE 0x020
+#define EEPROM_CLE_PRIVEE 0x020
 // ------------------------------------------------------
 
 #endif

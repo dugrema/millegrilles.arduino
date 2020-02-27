@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 // #include <RF24Mesh.h>
+#include <EEPROM.h>
 #include "Config.h"
 
 // Cryptographie, utilise ISR(WDT_vect)
@@ -12,6 +13,8 @@
 #include <EAX.h>
 #include <AES.h>
 #include <Curve25519.h>
+
+#define CLE_PRIVEE_ETAT_PRETE 1
 
 #define NO_TEMP -32768
 #define NO_PRESSURE 0xFF
@@ -104,6 +107,12 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
       _uuid = uuid;
       _nodeId = nodeId;
       _radio = radio;
+
+      // Lire l'etat de la cle privee dans le EEPROM
+      byte lectureEtatClePrivee;
+      EEPROM.get(EEPROM_CLE_PRIVEE_ETAT, lectureEtatClePrivee);
+      _clePriveePrete = lectureEtatClePrivee == CLE_PRIVEE_ETAT_PRETE;
+
     };
 
     // Implementation methodes FournisseurLectureAntenne
@@ -140,6 +149,7 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     bool isAckRecu();
     byte nombreCyclesAbortConsecutifs();  // Retourne le nombre de transmissions consecutives qui n'ont pas finit avec un ACK
     void resetNombreCyclesAbortConsecutifs();
+    bool isClePriveePrete();
 
     void loop();
 
@@ -153,7 +163,7 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     const byte* _uuid;
     const byte* _nodeId;
     RF24* _radio;
-    EAX<AES256>* eax256 = 0x0;
+    EAX<AES256> eax256;
     StatTransmissions stats = {
       .forceSignalPct = 0,
       .nombreTransmissions = 0,
@@ -165,9 +175,11 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     // byte _buffer[32]; // 32 bytes, max pour RF24
     byte _cle[32];  // Buffer de 32 bytes pour stocker des cles (publique durant echange ed25519 et secrete une fois pairing complete)
     byte _iv[16];  // IV pour transmissions cryptees
-    byte * _bufferTemp = 0x0;  // Byte* d'un buffer sur heap pour Ed25519, permet de conserver une valeur secondaire lorsque necesssaire (e.g. cle privee)
+    byte _clePrivee[32];  // Byte* d'un buffer sur heap pour Ed25519, permet de conserver une valeur secondaire lorsque necesssaire (e.g. cle privee)
     bool _transmissionOk = false;  // Vrai si la derniere transmission s'est rendue correctement (ACK RF24 recu)
     bool _ackRecu = true;          // Faux si on attend un ACK pour une transmission
+    bool _clePriveePrete;          // Vrai si la cle privee est deja generee
+    bool _cryptageActif = false;   // Vrai si on utilise le cryptage
 
     void ecrireUUID(byte* destination);
 

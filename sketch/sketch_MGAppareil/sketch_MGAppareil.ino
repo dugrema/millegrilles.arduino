@@ -1,4 +1,3 @@
-//#include <printf.h>
 #include <EEPROM.h>
 #include "Config.h"
 #include "Power.h"
@@ -22,6 +21,10 @@
 // UUID, va etre charge a partir de la memoire EEPROM
 byte uuid[16];
 byte modePairing = PAIRING_PAS_INIT;
+
+#ifdef LOGGING_DEV
+  uint16_t freeMemory;
+#endif
 
 // *****************
 // Senseurs
@@ -59,7 +62,6 @@ RF24 radio(RF24_CE_PIN, RF24_CSN_PIN);
 // byte data[32];  // Data buffer pour reception/emission RF24
 volatile bool messageRecu = false;
 bool ivUsed = true;  // Va creer un IV random avant la premiere transmission
-byte randomLowEntropyUtilise = 0xFF;
 
 byte nodeId = NODE_ID_DEFAULT;
 
@@ -141,6 +143,7 @@ void setup() {
 
   Serial.print(F("Setup termine apres "));
   Serial.println(millis());
+
 }
 
 void activerRadioDhcp() {
@@ -383,7 +386,7 @@ void ecouterReseau() {
   case PAIRING_PAS_INIT:
   default:
     // Initialiser la cle, besoin de 32 bytes random
-    if(RNG.available(32)) {
+    if(prot9.isClePriveePrete() || RNG.available(32)) {
 
       #ifdef LOGGING_DEV
         Serial.println(F("Init cle DH"));
@@ -422,7 +425,7 @@ bool networkProcess() {
     #ifdef LOGGING_DEV
       Serial.print(F("Recu message "));
       printArray((byte*)&buffer, 32);
-      Serial.println("");
+      Serial.println();
     #endif
 
     if(modePairing == PAIRING_CLE_PRIVEE_PRETE) {
@@ -488,19 +491,17 @@ void genererIv() {
   if(RNG.available(16)) {
     
     genererIv = true;
-    randomLowEntropyUtilise = 0;  // Reset compteur entropie faible
     
     #ifdef LOGGING_DEV
       Serial.print(F("Nouveau IV random : "));
     #endif
     
-  } else if( randomLowEntropyUtilise < RANDOM_LOWENTROPY_MAXCOUNT && RNG.available(1) ) {
+  } else if( RNG.available(1) ) {
     // On n'a pas assez de donnees pour un nombre random de 16 bytes
     // On genere quand meme un IV de 16 bytes mais une fois de temps en temps on
     // laisse l'entropie remonter
     
     genererIv = true;
-    randomLowEntropyUtilise++;
     
     #ifdef LOGGING_DEV
       Serial.print(F("Nouveau IV (entropie faible) : "));
@@ -526,7 +527,7 @@ void recevoirClePubliqueServeur(byte* data) {
   memcpy(&typeMessage, data + 1, 2);
 
   #ifdef LOGGING_DEV
-    Serial.print(F("Recevoir cle publique, type message : "));
+    Serial.print(F("Reception cle publique, type message : "));
     Serial.println(typeMessage);
   #endif
 
@@ -551,21 +552,21 @@ void recevoirClePubliqueServeur(byte* data) {
         Serial.print(F("Calculer cle secrete : "));
       #endif
       
-      prot9.executerDh2();
-
-      #ifdef LOGGING_DEV
-        printArray(prot9.getCleBuffer(), 32);
-      #endif
-
-      modePairing = PAIRING_SERVEUR_CLE;
-      lectureDue = true;  // Preparer la premiere transmission de contenu
-
-      // Activer le cryptage pour tous les messages subsequents
-      prot9.activerCryptage();
-      
-//    } else {
-//      Serial.println(F("Recue 2e partie de la cle mais 1ere pas recue"));
-//    }
+      if ( prot9.executerDh2() ) {
+        // Activer le cryptage pour tous les messages subsequents
+        prot9.activerCryptage();
+        #ifdef LOGGING_DEV
+          printArray(prot9.getCleBuffer(), 32);
+        #endif
+  
+        modePairing = PAIRING_SERVEUR_CLE;
+        lectureDue = true;  // Preparer la premiere transmission de contenu
+      } else {
+        #ifdef LOGGING_DEV
+          Serial.println(F("DH2 Erreur decodage cle, reset"));
+        #endif
+        modePairing = PAIRING_ADRESSE_DHCP_ASSIGNEE;
+      }
 
   }
 }
@@ -619,19 +620,6 @@ void chargerConfiguration() {
     Serial.println();
   #endif
 
-  if(modePairing == PAIRING_SERVEUR_CLE) {
-    // Charger la cle secrete et l'adresse du serveur
-    byte bufferCle[32];
-    EEPROM.get(EEPROM_MODE_PAIRING, *bufferCle);
-    memset(prot9.getCleBuffer(), &bufferCle, 32);
-    
-    // Serial.print(F("Cle secrete "));
-    // printArray(prot9.getCleBuffer(), 32);
-    // Serial.println();
-
-    // A faire, charger adresse serveur
-    
-  }
 }
 
 void checkRadio(void) {
@@ -662,7 +650,7 @@ bool assignerAdresseDHCPRecue(byte* data) {
       for(byte h=0; h<5; h++){
         printHex(adresseServeur[h]);
       }
-      Serial.println("");
+      Serial.println();
     #endif
 
     radio.openWritingPipe(adresseServeur);
@@ -710,11 +698,6 @@ bool assignerAdresseDHCPRecue(byte* data) {
       // Ajouter adresse ecoute broadcast (nodeId = 0xff)
       adresseNoeud[0] = 0xff;
       radio.openReadingPipe(2, adresseNoeud);
-
-      #ifdef LOGGING_DEV
-        radio.printDetails();
-        Serial.println(F("Senseur pret a transmettre"));
-      #endif 
       
       lectureDue = true;
       return false;  // Va indiquer qu'on veut transmettre immediatement

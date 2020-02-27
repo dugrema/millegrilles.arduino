@@ -118,18 +118,34 @@ bool MGProtocoleV9::isAckRecu() {
   return _ackRecu;
 }
 
+bool MGProtocoleV9::isClePriveePrete() {
+  return _clePriveePrete;
+}
+
 byte* MGProtocoleV9::executerDh1() {
-  // Creer un buffer temporaire pour sauvegarder la cle privee
-
-  if(eax256 != 0x0) {
-    // Liberer memoire
-    delete eax256;
-    eax256 = 0x0;
-  }
+  // Generer la cle publique
+  // Si la cle privee n'existe pas, on va aussi la generer
   
-  _bufferTemp = new byte[32];
+  byte bufferClePrivee[32];
 
-  Curve25519::dh1(_cle, _bufferTemp);
+  // Desactiver le cryptage de messages pour faire l'echange de cles publiques
+  _cryptageActif = false;
+
+  if( ! _clePriveePrete ) {
+    Curve25519::dh1(_cle, bufferClePrivee);
+
+    // Sauvegarder la cle privee dans le EEPROM
+    EEPROM.put(EEPROM_CLE_PRIVEE, bufferClePrivee);
+
+    // Sauvegarder flag pour indiquer que la cle privee est prete
+    EEPROM.update(EEPROM_CLE_PRIVEE_ETAT, CLE_PRIVEE_ETAT_PRETE);
+
+    _clePriveePrete = true;
+  } else {
+    // Regenerer la cle publique a partir de la cle privee
+    EEPROM.get(EEPROM_CLE_PRIVEE, bufferClePrivee);
+    Curve25519::eval(_cle, bufferClePrivee, 0);
+  }
 
   // Retourner la cle publique
   return (byte*)&_cle;
@@ -138,59 +154,60 @@ byte* MGProtocoleV9::executerDh1() {
 bool MGProtocoleV9::executerDh2() {
   // Note, copier la cle publique distante dans _cle (getCle()) avant d'appeler cette methode
   bool succes = false;
-  
-  if(_bufferTemp != 0x0) {
+
+  if( _clePriveePrete ) {
+
+    // Recuperer la cle privee du EEPROM
+    byte bufferClePrivee[32];
+    EEPROM.get(EEPROM_CLE_PRIVEE, bufferClePrivee);
+    
     // Calculer la cle secrete, sauvegarder
-    succes = Curve25519::dh2(_cle, _bufferTemp);
-  
-    // Nettoyage, on n'a plus besoin du buffer avec la cle privee
-    delete _bufferTemp;
-    _bufferTemp = 0x0;  // Comment faire null en C++?
+    succes = Curve25519::dh2(_cle, bufferClePrivee);
+    
   }
 
   return succes;
 }
 
 void MGProtocoleV9::activerCryptage() {
-  // Creer une instance en memo6:8ire
-  eax256 = new EAX<AES256>();
+  _cryptageActif = true;
 }
 
 bool MGProtocoleV9::initCipher(byte* authData, byte authDataLen) {
 
-  if(eax256 == 0x0) {
-    return false; 
+  if( ! _cryptageActif ) {
+    return false;
   }
 
-  eax256->clear();
+  eax256.clear();
     
-  if (!eax256->setKey((byte*)&_cle, eax256->keySize())) {
+  if (!eax256.setKey((byte*)&_cle, eax256.keySize())) {
       Serial.print("setKey ");
       return false;
   }
 
-  if (!eax256->setIV((byte*)&_iv, 16)) {
+  if (!eax256.setIV((byte*)&_iv, 16)) {
       Serial.print("setIV ");
       return false;
   }
 
-  eax256->addAuthData(authData, authDataLen);
+  eax256.addAuthData(authData, authDataLen);
 
   return true;
 }
 
 void MGProtocoleV9::encryptBuffer(byte* buffer, byte bufferLen) {
-  eax256->encrypt(buffer, buffer, bufferLen);
+  eax256.encrypt(buffer, buffer, bufferLen);
 }
 
 void MGProtocoleV9::decryptBuffer(byte* buffer, byte bufferLen) {
-  eax256->decrypt(buffer, buffer, bufferLen);
+  eax256.decrypt(buffer, buffer, bufferLen);
 }
 
 void MGProtocoleV9::computeTag(byte* outputTag) {
-  if(eax256 != 0x0) {
+  if(_cryptageActif) {
     // Le cryptage est actif
-    eax256->computeTag(outputTag, 16);
+    eax256.computeTag(outputTag, 16);
   } else {
     // Remplace le buffer par 16 bytes de 0
     memset(outputTag, 0x0, 16);
@@ -291,7 +308,7 @@ bool MGProtocoleV9::transmettrePaquetCrypte(byte taillePayload, byte* buffer) {
   byte* bufferData = buffer + 4;
 
   // Crypter buffer
-  eax256->encrypt(bufferData, bufferData, taillePayload - 4);
+  eax256.encrypt(bufferData, bufferData, taillePayload - 4);
 
   return transmettrePaquet(taillePayload, buffer);
 
