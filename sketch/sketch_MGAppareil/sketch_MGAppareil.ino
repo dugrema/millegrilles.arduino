@@ -334,7 +334,7 @@ bool transmettreClePublique() {
   #endif
   
   // Debut de la transmission
-  byte compteurPaquet  = prot9.transmettrePaquet0(MSG_TYPE_NOUVELLE_CLE);
+  byte compteurPaquet = prot9.transmettrePaquet0(MSG_TYPE_NOUVELLE_CLE);
   if(compteurPaquet == 0) return false;
 
   if( ! prot9.transmettrePaquetsClePublique(compteurPaquet) ) return false;
@@ -354,14 +354,13 @@ bool transmettreClePublique() {
 
 byte pinOutput = 200;
 bool directionPin = false;
-byte pintThrottle = 0;
 
 void ecouterReseau() {
   // Section lecture transmissions du reseau
 
   if(modePairing != PAIRING_SERVEUR_CLE) {
     pinOutput = 255;  // Max pour indiquer que le senseur n'est pas pret a transmettre
-  } else if(pintThrottle++ == 4) {
+  } else {
     if(directionPin) pinOutput++;
     else pinOutput--;
     if(pinOutput == 20) directionPin = true;
@@ -371,9 +370,13 @@ void ecouterReseau() {
   analogWrite(PIN_LED, pinOutput);
 
   switch(modePairing) {
-  case PAIRING_SERVEUR_CLE:
   case PAIRING_ADRESSE_DHCP_ASSIGNEE:
+    if(millis() - derniereAction > 200) {
+      // Retransmettre cle publique
+      lectureDue = true;
+    }
   case PAIRING_CLE_PRIVEE_PRETE:
+  case PAIRING_SERVEUR_CLE:
     networkProcess();
     break;
     
@@ -487,7 +490,7 @@ void genererIv() {
     genererIv = true;
     
     #ifdef LOGGING_DEV
-      Serial.print(F("Nouveau IV random : "));
+      Serial.println(F("Nouveau IV random"));
     #endif
     
   } else if( RNG.available(1) ) {
@@ -498,7 +501,7 @@ void genererIv() {
     genererIv = true;
     
     #ifdef LOGGING_DEV
-      Serial.print(F("Nouveau IV (entropie faible) : "));
+      Serial.println(F("Nouveau IV (entropie faible)"));
     #endif
     
   }
@@ -506,10 +509,6 @@ void genererIv() {
   if(genererIv) {
     // IV utilise et RNG a suffisamment d'entropie, extraire un IV de 16 bytes
     // RNG.rand(prot9.getIvBuffer(), 16);
-
-    #ifdef LOGGING_DEV
-      printArray(prot9.getIvBuffer(), 16);
-    #endif
 
     ivUsed = false;
   }
@@ -586,7 +585,7 @@ void attendreProchaineLecture() {
   // Fermer la radio, entrer en deep sleep
   radio.powerDown();
   digitalWrite(PIN_LED, LOW);
-  if(prot9.isTransmissionOk()) {
+  if( prot9.isAckRecu() ) {
     power.deepSleep(&messageRecu);
   } else {
     power.singleCycleSleep();

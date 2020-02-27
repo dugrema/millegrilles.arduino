@@ -85,7 +85,7 @@ void ArduinoPower::deepSleep(bool* wakeUp) {
 //  
 //  wdt_reset(); // Reset watchdog
 
-  sleep(_sleep_cycles - _current_sleep_count);
+  sleep(CYCLES_SOMMEIL - _current_sleep_count);
 
 //  while( _current_sleep_count++ < _sleep_cycles) { // && !*wakeUp) {
 //    // sleep_enable();

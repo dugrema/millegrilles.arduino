@@ -58,7 +58,6 @@ class ArduinoPower : public FournisseurLecturePower
   private:
     byte _battery_pin = BATTERY_PIN_VCC; // Defaut est VCC
     byte _current_sleep_count = 0; // Cycles actuels
-    const byte _sleep_cycles=CYCLES_SOMMEIL; // Nombre de cycles de sommeil (par reveil watchdog)
     uint32_t _lectureVcc;
     byte _nbLecturesVerificationTypeCourant = 0; // Nombre de lectures qui confirment le type d'alimentation (secteur, batterie AA ou lithium)
     byte _typeAlimentation = ALIMENTATION_INCONNU;
