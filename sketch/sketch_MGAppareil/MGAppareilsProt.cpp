@@ -96,19 +96,21 @@ byte MGProtocoleV9::lireReponseDhcp(byte* data, byte* adresseNoeud) {
   return nodeId_reserve;
 }
 
-// Ecrit UUID a partir du program space vers un buffer
+// Ecrit UUID a partir du EEPROM space vers un buffer
 void MGProtocoleV9::ecrireUUID(byte* destination) {
   // memcpy_P(destination, _uuid, 16);  // Utiliser si UUID est dans PROGMEM
-  memcpy(destination, _uuid, 16);
+  byte uuid[16];
+  EEPROM.get(EEPROM_UUID, uuid);
+  memcpy(destination, uuid, 16);
 }
 
 byte* MGProtocoleV9::getCleBuffer() {
   return (byte*) &_cle;
 }
 
-byte* MGProtocoleV9::getIvBuffer() {
-  return (byte*) &_iv;
-}
+//byte* MGProtocoleV9::getIvBuffer() {
+//  return (byte*) &_iv;
+//}
 
 bool MGProtocoleV9::isTransmissionOk() {
   return _transmissionOk;
@@ -173,7 +175,7 @@ void MGProtocoleV9::activerCryptage() {
   _cryptageActif = true;
 }
 
-bool MGProtocoleV9::initCipher(byte* authData, byte authDataLen) {
+bool MGProtocoleV9::initCipher(byte* authData, byte authDataLen, byte* iv) {
 
   if( ! _cryptageActif ) {
     return false;
@@ -186,7 +188,7 @@ bool MGProtocoleV9::initCipher(byte* authData, byte authDataLen) {
       return false;
   }
 
-  if (!eax256.setIV((byte*)&_iv, 16)) {
+  if (!eax256.setIV(iv, 16)) {
       Serial.print("setIV ");
       return false;
   }
@@ -242,11 +244,17 @@ byte MGProtocoleV9::transmettrePaquet0(uint16_t typeMessage) {
     if(!_transmissionOk) return nombrePaquets;  // Erreur transmission, abort
     nombrePaquets++;
   
-    if( initCipher(buffer, 22) ) { // Verifier si cryptage actif
+    if( _cryptageActif ) { // Verifier si cryptage actif
+      byte iv[16];
+      RNG.rand((byte*)&iv, 16);
+      
+      initCipher(buffer, 22, (byte*)&iv);
+      
       // Transmettre IV utilise pour crypter/decrypter message
       // Ce message indique implicitement que le reste de la transmission est cryptee
       // Auth data est le paquet 0 au complet, garanti la provenance
-      transmettrePaquetIv(1);
+      transmettrePaquetIv(1, (byte*)&iv);
+      
       nombrePaquets++;
     }
 
@@ -281,7 +289,7 @@ bool MGProtocoleV9::transmettrePaquetFin(byte noPaquet) {
   return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE, (byte*)&buffer);
 }
 
-bool MGProtocoleV9::transmettrePaquetIv(byte noPaquet) {
+bool MGProtocoleV9::transmettrePaquetIv(byte noPaquet, byte* iv) {
   // Format message :
   // Version            -  1 byter
   // Node ID            -  1 byte
@@ -297,7 +305,7 @@ bool MGProtocoleV9::transmettrePaquetIv(byte noPaquet) {
   buffer[1] = _nodeId[0];
   memcpy(buffer + 2, &noPaquetInt, sizeof(noPaquetInt));
   memcpy(buffer + 4, &typeMessage, sizeof(typeMessage));
-  memcpy(buffer + 6, &_iv, 16);
+  memcpy(buffer + 6, iv, 16);
 
   return transmettrePaquet(PAYLOAD_TAILLE_SIMPLE, (byte*)&buffer);
 }

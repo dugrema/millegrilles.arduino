@@ -13,6 +13,7 @@
 #include <EAX.h>
 #include <AES.h>
 #include <Curve25519.h>
+#include <RNG.h>
 
 #define CLE_PRIVEE_ETAT_PRETE 1
 
@@ -103,8 +104,7 @@ class FournisseurLectureAntenne {
 class MGProtocoleV9 : public FournisseurLectureAntenne {
 
   public:
-    MGProtocoleV9(const byte* uuid, RF24* radio, const byte* nodeId) {
-      _uuid = uuid;
+    MGProtocoleV9(RF24* radio, const byte* nodeId) {
       _nodeId = nodeId;
       _radio = radio;
 
@@ -121,12 +121,12 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     byte canal();
 
     byte* getCleBuffer(); // Retourne le buffer pour la cle - utiliser pour setter la cle publique distante ou cle secrete
-    byte* getIvBuffer(); // Retourne le buffer pour la cle - utiliser pour setter la cle publique distante ou cle secrete
+    // byte* getIvBuffer(); // Retourne le buffer pour la cle - utiliser pour setter la cle publique distante ou cle secrete
     byte* executerDh1();  // DH passe 1 pour generer cle privee. Retourne byte* vers cle publique.
     bool executerDh2();   // DH passe 2 pour extraire cle secrete. Retourne false si le processus a echoue.
 
     void activerCryptage();
-    bool initCipher(byte* authData, byte authDataLen); // Reinitialise cipher avec iv et cle existants
+    bool initCipher(byte* authData, byte authDataLen, byte* iv); // Reinitialise cipher avec iv et cle existants
     void encryptBuffer(byte* buffer, byte bufferLen);  // Encrypte buffer, resultat mis dans meme buffer
     void decryptBuffer(byte* buffer, byte bufferLen);  // Decrypte buffer, resultat mis dans meme buffer
     void computeTag(byte* outputTag);                  // Retourne le tag (hash) du message
@@ -160,7 +160,6 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
 //    bool transmettrePaquetLecturePower(uint16_t noPaquet, uint32_t millivolt, byte reservePct, byte alerte);
 
   private:
-    const byte* _uuid;
     const byte* _nodeId;
     RF24* _radio;
     EAX<AES256> eax256;
@@ -172,10 +171,7 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
       .nombreCyclesAbortConsecutifs = 0
     };
     
-    // byte _buffer[32]; // 32 bytes, max pour RF24
     byte _cle[32];  // Buffer de 32 bytes pour stocker des cles (publique durant echange ed25519 et secrete une fois pairing complete)
-    byte _iv[16];  // IV pour transmissions cryptees
-    byte _clePrivee[32];  // Byte* d'un buffer sur heap pour Ed25519, permet de conserver une valeur secondaire lorsque necesssaire (e.g. cle privee)
     bool _transmissionOk = false;  // Vrai si la derniere transmission s'est rendue correctement (ACK RF24 recu)
     bool _ackRecu = true;          // Faux si on attend un ACK pour une transmission
     bool _clePriveePrete;          // Vrai si la cle privee est deja generee
@@ -186,7 +182,7 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     // Transmet un paquet; il faut indiquer la taille du payload 
     // (PAYLOAD_TAILLE_SIMPLE ou PAYLOAD_TAILLE_DOUBLE)
     bool transmettrePaquet(byte taillePayload, byte* buffer);
-    bool transmettrePaquetIv(byte noPaquet);
+    bool transmettrePaquetIv(byte noPaquet, byte* iv);
     bool transmettrePaquetCrypte(byte taillePaquet, byte* buffer);
 };
 

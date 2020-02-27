@@ -156,7 +156,7 @@ void testCipher(AuthenticatedCipher *cipher, const struct TestVector *test)
         Serial.println("Failed");
 }
 
-void initCipher(AuthenticatedCipher *cipher, byte* key, byte* iv, byte* authData, byte authDataLen) {
+bool initCipher(AuthenticatedCipher *cipher, byte* key, byte* iv, byte* authData, byte authDataLen) {
     
     cipher->clear();
     

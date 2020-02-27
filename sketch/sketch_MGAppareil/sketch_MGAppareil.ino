@@ -19,12 +19,7 @@
 // Configuration
 
 // UUID, va etre charge a partir de la memoire EEPROM
-byte uuid[16];
 byte modePairing = PAIRING_PAS_INIT;
-
-#ifdef LOGGING_DEV
-  uint16_t freeMemory;
-#endif
 
 // *****************
 // Senseurs
@@ -59,7 +54,6 @@ TransistorNoiseSource noise1(A1);
 
 // Radio nRF24L01 sur pins CE=7, CSN=8
 RF24 radio(RF24_CE_PIN, RF24_CSN_PIN);
-// byte data[32];  // Data buffer pour reception/emission RF24
 volatile bool messageRecu = false;
 bool ivUsed = true;  // Va creer un IV random avant la premiere transmission
 
@@ -72,12 +66,18 @@ bool ecouterBeacon = true;
 // bool prot9.isTransmissionOk() = false;  // Flag qui indique un echec de transmission
 bool ackTransmission = true;  // Si false, indique qu'on attend un ACK de transmission
 
+bool lectureDue = true;
+bool bypassSleep = false;
+
 // Helper conversion de donnees avec protocole Version 7
-MGProtocoleV9 prot9(uuid, &radio, &nodeId);
+MGProtocoleV9 prot9(&radio, &nodeId);
 
 // Power management
 ArduinoPower power;
 volatile int f_wdt=1;
+
+long derniereAction = 0;  // Utiliser pour derminer prochaine action (sleep ou lecture selon power mode)
+
 
 // Conflit avec lib crypto.h, __vector_6 (wachdog) deja defini
 #ifndef WATCHDOG_INITD
@@ -111,7 +111,6 @@ void setup() {
   chargerConfiguration();
 
   // Initialize the random number generator.
-  RNG.begin(uuid);
   RNG.setAutoSaveTime(120); // 2 heures
 
   // Add the noise source to the list of sources known to RNG.
@@ -166,12 +165,6 @@ void activerRadioDhcp() {
   #endif
 }
 
-bool lectureDue = true;
-bool bypassSleep = false;
-long derniereAction = 0;  // Utiliser pour derminer prochaine action (sleep ou lecture selon power mode)
-const long attenteAlimentationBatterie = 500L; // 5L;
-const long attenteAlimentationSecteur = 8000L * CYCLES_SOMMEIL;
-
 void loop() {
 
   // Perform regular housekeeping on the random number generator.
@@ -216,6 +209,7 @@ void loop() {
       #endif
 
       // Transmettre information du senseur
+      // RNG.rand(prot9.getIvBuffer(), 16);  // Generer nouveau IV
       bool erreurTransmission = ! transmettrePaquets();
 
       #ifdef LOGGING_DEV
@@ -243,7 +237,7 @@ void loop() {
 
     long attente;
     if( prot9.isTransmissionOk() && prot9.isAckRecu() ) {
-      attente = attenteAlimentationSecteur;
+      attente = ATTENTE_SECTEUR;
     } else {
       attente = 8000L;  // Retransmettre plus rapidement
     }
@@ -262,7 +256,7 @@ void loop() {
   
     bypassSleep |= messageRecu || lectureDue || ivUsed;
 
-    if( ! bypassSleep && millis() - derniereAction < attenteAlimentationBatterie) {
+    if( ! bypassSleep && millis() - derniereAction < ATTENTE_BATTERIE) {
       // Attendre sleep
       bypassSleep = true;
     }
@@ -511,7 +505,7 @@ void genererIv() {
 
   if(genererIv) {
     // IV utilise et RNG a suffisamment d'entropie, extraire un IV de 16 bytes
-    RNG.rand(prot9.getIvBuffer(), 16);
+    // RNG.rand(prot9.getIvBuffer(), 16);
 
     #ifdef LOGGING_DEV
       printArray(prot9.getIvBuffer(), 16);
@@ -607,9 +601,13 @@ void attendreProchaineLecture() {
 void chargerConfiguration() {
 
   // UUID
+  byte uuid[16];
   EEPROM.get(EEPROM_UUID, uuid);
   Serial.print(F("UUID senseur "));
   printArray(uuid, 16);
+
+  // Initialiser generateur nombre aleatoire avec UUID
+  RNG.begin(uuid);
 
   // Mode pairing
   EEPROM.get(EEPROM_MODE_PAIRING, modePairing);
