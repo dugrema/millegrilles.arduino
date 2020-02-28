@@ -1,7 +1,6 @@
 #include <Crypto.h>
 #include <CryptoLW.h>
-#include <EAX.h>
-#include <AES.h>
+#include <Acorn128.h>
 #include <string.h>
 #include <avr/pgmspace.h>
 #include <EEPROM.h>
@@ -49,7 +48,7 @@ static TestVector const testVectorEAX1 PROGMEM = {
 
 // TestVector testVector;
 
-EAX<AES128> *eax256 = new EAX<AES128>();
+Acorn128 acorn;
 
 bool testCipher_N(AuthenticatedCipher *cipher, const struct TestVector *test, size_t inc)
 {
@@ -248,16 +247,14 @@ void setup()
 
     Serial.println();
 
-    // EAX<AES256> *eax256;
-  
     Serial.println("State Sizes:");
-    Serial.print("EAX<AES256> ... ");
-    Serial.println(sizeof(*eax256));
+    Serial.print("ACORN 128 ... ");
+    Serial.println(sizeof(acorn));
     Serial.println();
 
     Serial.println("Test Vectors:");
     // eax256 = new EAX<AES256>();
-    testCipher(eax256, &testVectorEAX1);
+    testCipher(&acorn, &testVectorEAX1);
     // delete eax256;
 
     Serial.println();
@@ -296,33 +293,33 @@ void testCrypter() {
     }
     
     Serial.print("Key: ");
-    printArray((byte*)&testKey, eax256->keySize());
+    printArray((byte*)&testKey, acorn.keySize());
     Serial.print("IV: ");
     printArray((byte*)&testIv, sizeof(testIv));
-    initCipher(eax256, (byte*)&testKey, (byte*)&testIv, (byte*)&contenuAuth, sizeof(contenuAuth));
+    initCipher(&acorn, (byte*)&testKey, (byte*)&testIv, (byte*)&contenuAuth, sizeof(contenuAuth));
 
     for(byte i=0; i < 3; i++) {
       byte positionArray = 8*i;
-      encryptBuffer(eax256, (byte*)&bufferTest + positionArray, (byte*)&contenuACrypter + positionArray, 8);
+      encryptBuffer(&acorn, (byte*)&bufferTest + positionArray, (byte*)&contenuACrypter + positionArray, 8);
       Serial.print("Buffer crypte : ");
       printArray((byte*)&bufferTest + positionArray, 8);
     }
 
-    computeTag(eax256, (byte*)&bufferTag);
+    computeTag(&acorn, (byte*)&bufferTag);
 
     // Decrypter le message
-    initCipher(eax256, (byte*)&testKey, (byte*)&testIv, (byte*)&contenuAuth, sizeof(contenuAuth));
+    initCipher(&acorn, (byte*)&testKey, (byte*)&testIv, (byte*)&contenuAuth, sizeof(contenuAuth));
 
     for(byte i=0; i < 3; i++) {
       byte positionArray = 8*i;
-      decryptBuffer(eax256, (byte*)&bufferDecrypteTest + positionArray, (byte*)&bufferTest + positionArray, 8);
+      decryptBuffer(&acorn, (byte*)&bufferDecrypteTest + positionArray, (byte*)&bufferTest + positionArray, 8);
       Serial.print("Buffer decrypte : ");
       printArray((byte*)&bufferDecrypteTest + positionArray, 8);
     }
 
     // computeTag(eax256, (byte*)&bufferDecrypteTag);
 
-    bool checkTag = eax256->checkTag(&bufferTag, sizeof(bufferTag));
+    bool checkTag = acorn.checkTag(&bufferTag, sizeof(bufferTag));
     if(checkTag) {
       Serial.println("Tag OK");
     } else {

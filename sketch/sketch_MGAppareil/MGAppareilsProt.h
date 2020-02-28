@@ -10,8 +10,9 @@
 #define WATCHDOG_INITD
 #include <Crypto.h>
 #include <CryptoLW.h>
-#include <EAX.h>
-#include <AES.h>
+// #include <EAX.h>
+// #include <AES.h>
+#include <Acorn128.h>
 #include <Curve25519.h>
 #include <RNG.h>
 
@@ -162,7 +163,10 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
   private:
     const byte* _nodeId;
     RF24* _radio;
-    EAX<AES256> eax256;
+
+    // EAX<AES256> eax256;
+    Acorn128 cipher;  
+    
     StatTransmissions stats = {
       .forceSignalPct = 0,
       .nombreTransmissions = 0,

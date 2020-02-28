@@ -67,7 +67,20 @@ bool ecouterBeacon = true;
 bool ackTransmission = true;  // Si false, indique qu'on attend un ACK de transmission
 
 bool lectureDue = true;
+
 bool bypassSleep = false;
+
+struct {
+  // Output analogique sur le LED, 0xFF est max et 0x00 est OFF.
+  byte pinOutput = 0xFF;
+
+  // Indique direction de changement du LED (augmentation ou diminution de l'intensite)
+  bool directionPin = false;
+
+  // Utilise le nombre de bits pour controler la frequence de rafraichissement du LED
+  unsigned int throttlePin : 4;
+  
+} ledStatus;
 
 // Helper conversion de donnees avec protocole Version 7
 MGProtocoleV9 prot9(&radio, &nodeId);
@@ -142,6 +155,10 @@ void setup() {
 
   Serial.print(F("Setup termine apres "));
   Serial.println(millis());
+
+  #ifdef LOGGING_DEV
+    afficherTailleObjets();
+  #endif
 
 }
 
@@ -352,22 +369,19 @@ bool transmettreClePublique() {
   #endif
 }
 
-byte pinOutput = 200;
-bool directionPin = false;
-
 void ecouterReseau() {
   // Section lecture transmissions du reseau
-
+  ledStatus.throttlePin++;
   if(modePairing != PAIRING_SERVEUR_CLE) {
-    pinOutput = 255;  // Max pour indiquer que le senseur n'est pas pret a transmettre
-  } else {
-    if(directionPin) pinOutput++;
-    else pinOutput--;
-    if(pinOutput == 20) directionPin = true;
-    if(pinOutput == 180) directionPin = false;
+    ledStatus.pinOutput = 255;  // Max pour indiquer que le senseur n'est pas pret a transmettre
+  } else if(!ledStatus.throttlePin) {
+    if(ledStatus.directionPin) ledStatus.pinOutput++;
+    else ledStatus.pinOutput--;
+    if(ledStatus.pinOutput == 10) ledStatus.directionPin = true;
+    if(ledStatus.pinOutput == 200) ledStatus.directionPin = false;
   }
   
-  analogWrite(PIN_LED, pinOutput);
+  analogWrite(PIN_LED, ledStatus.pinOutput);
 
   switch(modePairing) {
   case PAIRING_ADRESSE_DHCP_ASSIGNEE:
@@ -725,3 +739,39 @@ void printHex(byte val) {
   }
   Serial.print(val, HEX);
 }
+
+#ifdef LOGGING_DEV
+void afficherTailleObjets() {
+  
+  Serial.print(F("Taille radio : "));
+  Serial.println(sizeof(radio));
+  
+  Serial.print(F("Taille prot9 : "));
+  Serial.println(sizeof(prot9));
+
+  #if defined(DHTPIN) && defined(DHTTYPE)
+    Serial.print(F("Taille DHT : "));
+    Serial.println(sizeof(dht));
+  #endif
+
+  #ifdef BUS_MODE_I2C
+    Serial.print(F("Taille BMP : "));
+    Serial.println(sizeof(bmp));
+  #endif
+
+  #ifdef BUS_MODE_ONEWIRE
+    Serial.print(F("Taille 1W : "));
+    Serial.println(sizeof(oneWireHandler));
+  #endif
+
+  Serial.print(F("Taille noise1 : "));
+  Serial.println(sizeof(noise1));
+
+  Serial.print(F("Taille RNG : "));
+  Serial.println(sizeof(RNG));
+  
+  Serial.print(F("Taille power : "));
+  Serial.println(sizeof(power));
+  
+}
+#endif

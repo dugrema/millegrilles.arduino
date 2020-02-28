@@ -181,35 +181,35 @@ bool MGProtocoleV9::initCipher(byte* authData, byte authDataLen, byte* iv) {
     return false;
   }
 
-  eax256.clear();
+  cipher.clear();
     
-  if (!eax256.setKey((byte*)&_cle, eax256.keySize())) {
+  if (!cipher.setKey((byte*)&_cle, cipher.keySize())) {
       Serial.print("setKey ");
       return false;
   }
 
-  if (!eax256.setIV(iv, 16)) {
+  if (!cipher.setIV(iv, 16)) {
       Serial.print("setIV ");
       return false;
   }
 
-  eax256.addAuthData(authData, authDataLen);
+  cipher.addAuthData(authData, authDataLen);
 
   return true;
 }
 
 void MGProtocoleV9::encryptBuffer(byte* buffer, byte bufferLen) {
-  eax256.encrypt(buffer, buffer, bufferLen);
+  cipher.encrypt(buffer, buffer, bufferLen);
 }
 
 void MGProtocoleV9::decryptBuffer(byte* buffer, byte bufferLen) {
-  eax256.decrypt(buffer, buffer, bufferLen);
+  cipher.decrypt(buffer, buffer, bufferLen);
 }
 
 void MGProtocoleV9::computeTag(byte* outputTag) {
   if(_cryptageActif) {
     // Le cryptage est actif
-    eax256.computeTag(outputTag, 16);
+    cipher.computeTag(outputTag, 16);
   } else {
     // Remplace le buffer par 16 bytes de 0
     memset(outputTag, 0x0, 16);
@@ -316,7 +316,7 @@ bool MGProtocoleV9::transmettrePaquetCrypte(byte taillePayload, byte* buffer) {
   byte* bufferData = buffer + 4;
 
   // Crypter buffer
-  eax256.encrypt(bufferData, bufferData, taillePayload - 4);
+  cipher.encrypt(bufferData, bufferData, taillePayload - 4);
 
   return transmettrePaquet(taillePayload, buffer);
 
