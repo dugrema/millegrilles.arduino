@@ -8,23 +8,23 @@
 #define MG_DEV
 // #define MG_INT
 
-// #define LOGGING_DEV
+#define LOGGING_DEV
 
-// #define MG_DEV_TEST_BATTERIE
+#define MG_DEV_TEST_BATTERIE
 
 // ------------------------------------------------------
 // Appareils
 
 // Bus TWI / I2C
-#define BUS_MODE_I2C
+// #define BUS_MODE_I2C
 
 // Bus OneWire, utilise pour thermometres DS18B20/DS18S20.
 // #define BUS_MODE_ONEWIRE
 // #define ONE_WIRE_PIN 10
 
 // Senseur DHT
-#define DHTPIN 4
-#define DHTTYPE 22
+// #define DHTPIN 4
+// #define DHTTYPE 22
 // ------------------------------------------------------
 
 // ------------------------------------------------------
@@ -59,10 +59,10 @@
 
 // ------------------------------------------------------
 // Power
-#define CYCLES_SOMMEIL 7
+#define CYCLES_SOMMEIL 2
 #define BATTERY_PIN_VCC 0
 // #define BATTERY_PIN_VCC A0
-#define ATTENTE_BATTERIE  500L
+#define ATTENTE_BATTERIE  700L
 #define ATTENTE_SECTEUR  8000L
 // ------------------------------------------------------
 

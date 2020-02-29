@@ -55,20 +55,29 @@ TransistorNoiseSource noise1(A1);
 // Radio nRF24L01 sur pins CE=7, CSN=8
 RF24 radio(RF24_CE_PIN, RF24_CSN_PIN);
 volatile bool messageRecu = false;
-bool ivUsed = true;  // Va creer un IV random avant la premiere transmission
 
-byte nodeId = NODE_ID_DEFAULT;
+struct {
+  byte nodeId = NODE_ID_DEFAULT;
 
-// Renouveller nodeId. Toujours verifier nodeId avec DHCP au demarrage
-// bool doitVerifierAdresseDhcp = true;
-bool ecouterBeacon = true;
+  // Utilise pour indiquer quand debuter la transmission
+  // Permet d'utiliser une valeur random pour diminuer les collisions de transmissions
+  uint16_t attenteTransmission = 0;
 
-// bool prot9.isTransmissionOk() = false;  // Flag qui indique un echec de transmission
-bool ackTransmission = true;  // Si false, indique qu'on attend un ACK de transmission
+  long derniereAction = 0;  // Utiliser pour derminer prochaine action (sleep ou lecture selon power mode)
 
-bool lectureDue = true;
+  bool ivUsed = true;  // Va creer un IV random avant la premiere transmission
 
-bool bypassSleep = false;
+  // Renouveller nodeId. Toujours verifier nodeId avec DHCP au demarrage
+  // bool doitVerifierAdresseDhcp = true;
+  bool ecouterBeacon = true;
+  
+  // bool prot9.isTransmissionOk() = false;  // Flag qui indique un echec de transmission
+  bool ackTransmission = true;  // Si false, indique qu'on attend un ACK de transmission
+  
+  bool lectureDue = true;
+  
+  bool bypassSleep = false;
+} infoReseau;
 
 struct {
   // Output analogique sur le LED, 0xFF est max et 0x00 est OFF.
@@ -83,13 +92,11 @@ struct {
 } ledStatus;
 
 // Helper conversion de donnees avec protocole Version 7
-MGProtocoleV9 prot9(&radio, &nodeId);
+MGProtocoleV9 prot9(&radio, &infoReseau.nodeId);
 
 // Power management
 ArduinoPower power;
 volatile int f_wdt=1;
-
-long derniereAction = 0;  // Utiliser pour derminer prochaine action (sleep ou lecture selon power mode)
 
 
 // Conflit avec lib crypto.h, __vector_6 (wachdog) deja defini
@@ -156,9 +163,9 @@ void setup() {
   Serial.print(F("Setup termine apres "));
   Serial.println(millis());
 
-  #ifdef LOGGING_DEV
-    afficherTailleObjets();
-  #endif
+//  #ifdef LOGGING_DEV
+//    afficherTailleObjets();
+//  #endif
 
 }
 
@@ -189,58 +196,19 @@ void loop() {
   // Entretien radio/protocole
   prot9.loop();
 
-  bypassSleep = false;
+  infoReseau.bypassSleep = false;
 
   // S'assurer que DHCP a ete execute correctement avant de transmettre
   // On n'effectue pas de lecture sur reception de commande
-  if( lectureDue && ! messageRecu && !ivUsed ) {
+  bool actionExpiree = attenteActionExpiree();
+  
+  if( infoReseau.lectureDue && ! messageRecu && !infoReseau.ivUsed && attenteActionExpiree() ) {
 
     #ifdef LOGGING_DEV
-      Serial.println(F("Debut traitement lecture"));
+      Serial.println(F("Action transmission"));
     #endif
 
-    // Cleanup flag lecture
-    lectureDue = false;
-
-    power.lireVoltageBatterie();
-
-    // S'assurer qu'on est en position de transmettre la lecture
-    if( modePairing == PAIRING_SERVEUR_CLE ) {
-
-      #ifdef LOGGING_DEV
-        Serial.println(F("Lecture normale"));
-      #endif
-      
-      digitalWrite(PIN_LED, HIGH);  
-  
-      // Effectuer lectures
-      #if defined(DHTPIN) && defined(DHTTYPE)
-        dht.lire();
-      #endif
-      
-      #ifdef BUS_MODE_ONEWIRE
-        // Fait la recherche initiale sur le bus
-        oneWireHandler.lire();
-      #elif defined(BUS_MODE_I2C)
-        bmp.lire();
-      #endif
-
-      // Transmettre information du senseur
-      // RNG.rand(prot9.getIvBuffer(), 16);  // Generer nouveau IV
-      bool erreurTransmission = ! transmettrePaquets();
-
-      #ifdef LOGGING_DEV
-        Serial.print(F("Transmission lectures, erreur: "));
-        Serial.println(erreurTransmission);
-      #endif
-
-    } else if(modePairing == PAIRING_ADRESSE_DHCP_ASSIGNEE) {
-      // Transmettre l'information de pairing avec la cle publique
-      transmettreClePublique();
-    }
-
-    // Indique temps de la derniere action
-    derniereAction = millis();
+    actionTransmission();
   }
 
   // Ecouter reseau
@@ -250,7 +218,7 @@ void loop() {
   if(power.isAlimentationSecteur()) {
     // Comportement sur alimentation secteur
     // On ne sleep jamais sur alimentation secteur
-    bypassSleep = true;
+    infoReseau.bypassSleep = true;
 
     long attente;
     if( prot9.isTransmissionOk() && prot9.isAckRecu() ) {
@@ -258,12 +226,12 @@ void loop() {
     } else {
       attente = 8000L;  // Retransmettre plus rapidement
     }
-    if(millis() - derniereAction > attente) {
+    if(millis() - infoReseau.derniereAction > attente) {
       // Declencher nouvelle lecture senseur (alimentation secteur)
-      lectureDue = true;
+      infoReseau.lectureDue = true;
 
       #ifdef LOGGING_DEV
-        Serial.println(F("Mode secteur, lecture due"));
+        Serial.println(F("Mode secteur, action due"));
       #endif
     }
     
@@ -271,16 +239,16 @@ void loop() {
     // Comportement sur batterie
     // Sur batterie, on agit immediatement si un message est Recu
   
-    bypassSleep |= messageRecu || lectureDue || ivUsed;
+    infoReseau.bypassSleep |= messageRecu || infoReseau.lectureDue || infoReseau.ivUsed;
 
-    if( ! bypassSleep && millis() - derniereAction < ATTENTE_BATTERIE) {
+    if( ! infoReseau.bypassSleep && millis() - infoReseau.derniereAction < ATTENTE_BATTERIE) {
       // Attendre sleep
-      bypassSleep = true;
+      infoReseau.bypassSleep = true;
     }
     
   }
  
-  if( ! bypassSleep ) {
+  if( ! infoReseau.bypassSleep ) {
     // Attendre la prochaine lecture
     attendreProchaineLecture();
 
@@ -288,19 +256,71 @@ void loop() {
     f_wdt = 0;
 
     // Declencher nouvelle lecture senseur (batterie)
-    lectureDue = true;
+    infoReseau.lectureDue = true;
     
     #ifdef LOGGING_DEV
-      Serial.println(F("Mode batterie, lecture due"));
+      Serial.println(F("Mode batterie, action due"));
     #endif
   }
 
 }
 
+bool attenteActionExpiree() {
+  return millis() - infoReseau.derniereAction > infoReseau.attenteTransmission;
+}
+
+void actionTransmission() {
+  // Cleanup flag lecture
+  infoReseau.lectureDue = false;
+
+  power.lireVoltageBatterie();
+
+  // S'assurer qu'on est en position de transmettre la lecture
+  if( modePairing == PAIRING_SERVEUR_CLE ) {
+
+    #ifdef LOGGING_DEV
+      Serial.println(F("Lecture normale"));
+    #endif
+    
+    digitalWrite(PIN_LED, HIGH);  
+
+    // Effectuer lectures
+    #if defined(DHTPIN) && defined(DHTTYPE)
+      dht.lire();
+    #endif
+    
+    #ifdef BUS_MODE_ONEWIRE
+      // Fait la recherche initiale sur le bus
+      oneWireHandler.lire();
+    #elif defined(BUS_MODE_I2C)
+      bmp.lire();
+    #endif
+
+    // Transmettre information du senseur
+    // RNG.rand(prot9.getIvBuffer(), 16);  // Generer nouveau IV
+    bool erreurTransmission = ! transmettrePaquets();
+
+    #ifdef LOGGING_DEV
+      Serial.print(F("Transmission lectures, erreur: "));
+      Serial.println(erreurTransmission);
+    #endif
+
+  } else if(modePairing == PAIRING_ADRESSE_DHCP_ASSIGNEE) {
+    // Transmettre l'information de pairing avec la cle publique
+    transmettreClePublique();
+  }
+
+  // Indique temps de la derniere action
+  infoReseau.derniereAction = millis();  
+}
+
 // Transmet les paquets. 
 bool transmettrePaquets() {
+  #ifdef LOGGING_DEV
+    Serial.println(F("Transmettre lectures"));
+  #endif
 
-  if(ivUsed) {
+  if(infoReseau.ivUsed) {
     #ifdef LOGGING_DEV
       Serial.println(F("transmettrePaquets: echec, besoin nouveau IV"));
     #endif 
@@ -315,7 +335,7 @@ bool transmettrePaquets() {
   }
 
   if(compteurPaquet > 1) {
-    ivUsed = true;  // Le IV a ete transmis avec succes, on le considere comme consomme
+    infoReseau.ivUsed = true;  // Le IV a ete transmis avec succes, on le considere comme consomme
   }
 
   // Dalsemi OneWire (1W)
@@ -385,9 +405,9 @@ void ecouterReseau() {
 
   switch(modePairing) {
   case PAIRING_ADRESSE_DHCP_ASSIGNEE:
-    if(millis() - derniereAction > 200) {
+    if( ! infoReseau.lectureDue ) {
       // Retransmettre cle publique
-      lectureDue = true;
+      declencherAction(2000, 3000);
     }
   case PAIRING_CLE_PRIVEE_PRETE:
   case PAIRING_SERVEUR_CLE:
@@ -416,10 +436,21 @@ void ecouterReseau() {
       // On a une cle privee, on prepare la radio a ecouter le beacon DHCP
       activerRadioDhcp();
     } else {
-      bypassSleep = true;  // Doit generer contenu aleatoire
+      infoReseau.bypassSleep = true;  // Doit generer contenu aleatoire
     }
   }
   
+}
+
+void declencherAction(int rangeMin, int rangeMax) {
+  infoReseau.attenteTransmission = random(rangeMin, rangeMax);
+  #ifdef LOGGING_DEV
+    Serial.print(F("Action declenchee, attente "));
+    Serial.println(infoReseau.attenteTransmission);
+  #endif
+  
+  infoReseau.derniereAction = millis();
+  infoReseau.lectureDue = true;
 }
 
 bool networkProcess() {
@@ -473,7 +504,7 @@ bool networkProcess() {
   }
   messageRecu = false;
 
-  if(ivUsed) {
+  if(infoReseau.ivUsed) {
     // Mettre a jour le IV
     genererIv();
   }
@@ -524,7 +555,7 @@ void genererIv() {
     // IV utilise et RNG a suffisamment d'entropie, extraire un IV de 16 bytes
     // RNG.rand(prot9.getIvBuffer(), 16);
 
-    ivUsed = false;
+    infoReseau.ivUsed = false;
   }
 
 }
@@ -553,10 +584,10 @@ void recevoirClePubliqueServeur(byte* data) {
       memcpy(prot9.getCleBuffer() + 28, data + 4, 4);
 
       #ifdef LOGGING_DEV
-        Serial.print(F("Cle publique serveur recue au complet : "));
+        Serial.print(F("Cle publique recue : "));
         printArray(prot9.getCleBuffer(), 32);
 
-        Serial.print(F("Calculer cle secrete : "));
+        Serial.print(F("Cle secrete : "));
       #endif
       
       if ( prot9.executerDh2() ) {
@@ -567,7 +598,9 @@ void recevoirClePubliqueServeur(byte* data) {
         #endif
   
         modePairing = PAIRING_SERVEUR_CLE;
-        lectureDue = true;  // Preparer la premiere transmission de contenu
+        infoReseau.lectureDue = true;  // Preparer la premiere transmission de contenu
+        infoReseau.derniereAction = millis();
+        infoReseau.attenteTransmission = random(200, 250);
       } else {
         #ifdef LOGGING_DEV
           Serial.println(F("DH2 Erreur decodage cle, reset"));
@@ -622,6 +655,10 @@ void chargerConfiguration() {
   // Initialiser generateur nombre aleatoire avec UUID
   RNG.begin(uuid);
 
+  unsigned long seed;
+  memcpy(&seed, uuid, 4);  // Utiliser 4 premiers bytes du UUID pour seeder pseudo-random gen
+  randomSeed(seed);
+
   // Mode pairing
   EEPROM.get(EEPROM_MODE_PAIRING, modePairing);
 
@@ -671,15 +708,19 @@ bool assignerAdresseDHCPRecue(byte* data) {
     #endif
     
     radio.stopListening();
+    // Attendre quelques millisecondes random pour donner la chance
+    // aux divers appareils de faire leur demande.
+    byte attente = random(4, 64);
+    delay(attente);
     bool transmisOk = prot9.transmettreRequeteDhcp();
     radio.startListening();
-    ecouterBeacon = false;
+    infoReseau.ecouterBeacon = false;
 
     #ifdef LOGGING_DEV
       if(transmisOk) {
-        Serial.println(F("Requete DHCP transmise"));
+        Serial.println(F("DHCP transmise"));
       } else {
-        Serial.println(F("Requete DHCP echec"));
+        Serial.println(F("DHCP echec"));
       }
     #endif
     
@@ -694,7 +735,7 @@ bool assignerAdresseDHCPRecue(byte* data) {
     if(nodeIdReserve) {
       modePairing = PAIRING_ADRESSE_DHCP_ASSIGNEE;
 
-      nodeId = nodeIdReserve;  // Modification du node Id interne
+      infoReseau.nodeId = nodeIdReserve;  // Modification du node Id interne
       // Changement de nodeId
 
       #ifdef LOGGING_DEV
@@ -710,7 +751,7 @@ bool assignerAdresseDHCPRecue(byte* data) {
       adresseNoeud[0] = 0xff;
       radio.openReadingPipe(2, adresseNoeud);
       
-      lectureDue = true;
+      infoReseau.lectureDue = true;
       return false;  // Va indiquer qu'on veut transmettre immediatement
     }
   } else {
@@ -740,38 +781,38 @@ void printHex(byte val) {
   Serial.print(val, HEX);
 }
 
-#ifdef LOGGING_DEV
-void afficherTailleObjets() {
-  
-  Serial.print(F("Taille radio : "));
-  Serial.println(sizeof(radio));
-  
-  Serial.print(F("Taille prot9 : "));
-  Serial.println(sizeof(prot9));
-
-  #if defined(DHTPIN) && defined(DHTTYPE)
-    Serial.print(F("Taille DHT : "));
-    Serial.println(sizeof(dht));
-  #endif
-
-  #ifdef BUS_MODE_I2C
-    Serial.print(F("Taille BMP : "));
-    Serial.println(sizeof(bmp));
-  #endif
-
-  #ifdef BUS_MODE_ONEWIRE
-    Serial.print(F("Taille 1W : "));
-    Serial.println(sizeof(oneWireHandler));
-  #endif
-
-  Serial.print(F("Taille noise1 : "));
-  Serial.println(sizeof(noise1));
-
-  Serial.print(F("Taille RNG : "));
-  Serial.println(sizeof(RNG));
-  
-  Serial.print(F("Taille power : "));
-  Serial.println(sizeof(power));
-  
-}
-#endif
+//#ifdef LOGGING_DEV
+//void afficherTailleObjets() {
+//  
+//  Serial.print(F("Taille radio : "));
+//  Serial.println(sizeof(radio));
+//  
+//  Serial.print(F("Taille prot9 : "));
+//  Serial.println(sizeof(prot9));
+//
+//  #if defined(DHTPIN) && defined(DHTTYPE)
+//    Serial.print(F("Taille DHT : "));
+//    Serial.println(sizeof(dht));
+//  #endif
+//
+//  #ifdef BUS_MODE_I2C
+//    Serial.print(F("Taille BMP : "));
+//    Serial.println(sizeof(bmp));
+//  #endif
+//
+//  #ifdef BUS_MODE_ONEWIRE
+//    Serial.print(F("Taille 1W : "));
+//    Serial.println(sizeof(oneWireHandler));
+//  #endif
+//
+//  Serial.print(F("Taille noise1 : "));
+//  Serial.println(sizeof(noise1));
+//
+//  Serial.print(F("Taille RNG : "));
+//  Serial.println(sizeof(RNG));
+//  
+//  Serial.print(F("Taille power : "));
+//  Serial.println(sizeof(power));
+//  
+//}
+//#endif
