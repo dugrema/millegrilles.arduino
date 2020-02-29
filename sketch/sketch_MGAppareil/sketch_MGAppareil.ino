@@ -237,13 +237,24 @@ void loop() {
     
   } else {
     // Comportement sur batterie
-    // Sur batterie, on agit immediatement si un message est Recu
-  
+    // L'idee est de tenter d'entrer en sleep aussi vite que possible.
+    // Certaines operations d'entretien sont quand meme faites et on laisse l'antenne ouverte
+    // pendant ce temps, ca donne le temps de recevoir des commandes.
+
+    // Si un message est recu pendant que l'antenne fonctionne, on agit immediatement
+    // On renouvelle le IV avant d'entrer en mode sleep (generement 1 seconde de travail en background)
+    // On attend le ACK, jusqu'a concurrence de ATTENTE_BATTERIE
+    
     infoReseau.bypassSleep |= messageRecu || infoReseau.lectureDue || infoReseau.ivUsed;
 
-    if( ! infoReseau.bypassSleep && millis() - infoReseau.derniereAction < ATTENTE_BATTERIE) {
-      // Attendre sleep
-      infoReseau.bypassSleep = true;
+    if( ! infoReseau.bypassSleep ) {
+
+      // On peut entrer en sleep des que le ACK est recu
+      if( ! prot9.isAckRecu() && millis() - infoReseau.derniereAction < ATTENTE_BATTERIE) {
+        // Attendre sleep
+        infoReseau.bypassSleep = true;
+      }
+      
     }
     
   }
@@ -587,7 +598,7 @@ void recevoirClePubliqueServeur(byte* data) {
         Serial.print(F("Cle publique recue : "));
         printArray(prot9.getCleBuffer(), 32);
 
-        Serial.print(F("Cle secrete : "));
+        // Serial.print(F("Cle secrete : "));
       #endif
       
       if ( prot9.executerDh2() ) {
