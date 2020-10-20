@@ -35,18 +35,21 @@
 #define MSG_TYPE_REPONSE_DHCP 0x2
 #define MSG_TYPE_BEACON_DHCP  0x3
 
-#define MSG_TYPE_CLE_LOCALE_1   0x4
-#define MSG_TYPE_CLE_LOCALE_2   0x5
-#define MSG_TYPE_CLE_DISTANTE_1 0x6
-#define MSG_TYPE_CLE_DISTANTE_2 0x7
-#define MSG_TYPE_NOUVELLE_CLE   0x8
-#define MSG_TYPE_REPONSE_ACK    0x9
+#define MSG_TYPE_CLE_LOCALE_1   0x0004
+#define MSG_TYPE_CLE_LOCALE_2   0x0005
+#define MSG_TYPE_CLE_DISTANTE_1 0x0006
+#define MSG_TYPE_CLE_DISTANTE_2 0x0007
+#define MSG_TYPE_NOUVELLE_CLE   0x0008
+#define MSG_TYPE_REPONSE_ACK    0x0009
+#define MSG_TYPE_ECHANGE_IV     0x000A
 
+// Paquets de debut (00xx) et de fin (FFxx)
 #define MSG_TYPE_PAQUET0       0x0000
 #define MSG_TYPE_PAQUET_INCONNU 0xF0F0
 #define MSG_TYPE_PAQUET_IV     0xFFFE
 #define MSG_TYPE_PAQUET_FIN    0xFFFF
 
+// Paquets d'une transaction chiffree (01xx)
 #define MSG_TYPE_LECTURES_COMBINEES 0x101
 #define MSG_TYPE_LECTURE_TH 0x102
 #define MSG_TYPE_LECTURE_TP 0x103
@@ -54,8 +57,9 @@
 #define MSG_TYPE_LECTURE_ONEWIRE 0x105
 #define MSG_TYPE_LECTURE_ANTENNE 0x106
 
-#define MSG_TYPE_LECTURE_TH_ANTENNE_POWER 0x202
-#define MSG_TYPE_LECTURE_TP_ANTENNE_POWER 0x203
+// Message chiffre - paquet 32 bytes tout inclus (02xx)
+#define MSG_TYPE_LECTURE_TH_ANTENNE_POWER 0x0202
+#define MSG_TYPE_LECTURE_TP_ANTENNE_POWER 0x0203
 
 
 struct StatTransmissions {
@@ -106,27 +110,6 @@ class FournisseurLectureAntenne {
     virtual byte canal();         // byte
 };
 
-class FournisseurLectureTHAntennePower {
-  public:
-    virtual int temperature();
-    virtual uint16_t humidite();
-    virtual byte pctSignal();
-    virtual byte forceEmetteur();
-    virtual byte canal();
-    virtual uint16_t millivolt();
-};
-
-class FournisseurLectureTPAntennePower {
-  public:
-    virtual int temperature();
-    virtual uint16_t pression();
-    virtual byte pctSignal();
-    virtual byte forceEmetteur();
-    virtual byte canal();
-    virtual uint16_t millivolt();
-};
-
-
 class MGProtocoleV9 : public FournisseurLectureAntenne {
 
   public:
@@ -147,7 +130,6 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     byte canal();
 
     byte* getCleBuffer(); // Retourne le buffer pour la cle - utiliser pour setter la cle publique distante ou cle secrete
-    byte* getIvBuffer();  // Retourne le buffer avec le IV confirme comme recu cote serveur - permet d'utilise message cryptes (one shot)
     byte* executerDh1();  // DH passe 1 pour generer cle privee. Retourne byte* vers cle publique.
     bool executerDh2();   // DH passe 2 pour extraire cle secrete. Retourne false si le processus a echoue.
 
@@ -173,8 +155,8 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     bool transmettrePaquetLectureAntenne(uint16_t noPaquet, FournisseurLectureAntenne* fournisseur);
 
     // Messages all-included, dependent du setup UUID, cle, iv prealables
-    bool transmettreLectureTHAntennePower(FournisseurLectureTHAntennePower* fournisseur);
-    bool transmettreLectureTPAntennePower(FournisseurLectureTPAntennePower* fournisseur);
+    bool transmettreLectureTHAntennePower(FournisseurLectureTH* th, FournisseurLectureAntenne* antenne, FournisseurLecturePower* power);
+    // bool transmettreLectureTPAntennePower(FournisseurLectureTPAntennePower* fournisseur);
     
     // bool transmettrePaquetLectureOneWire(uint16_t noPaquet, FournisseurLectureOneWire* fournisseur);
     
@@ -208,11 +190,12 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     };
     
     byte _cle[32];  // Buffer de 32 bytes pour stocker des cles (publique durant echange ed25519 et secrete une fois pairing complete)
+    byte _iv[16];   // IV connu par le serveur (transmis et confirme - permet messages 0x02xx)
+    
     bool _transmissionOk = false;  // Vrai si la derniere transmission s'est rendue correctement (ACK RF24 recu)
     bool _ackRecu = true;          // Faux si on attend un ACK pour une transmission
     bool _clePriveePrete;          // Vrai si la cle privee est deja generee
     bool _cryptageActif = false;   // Vrai si on utilise le cryptage
-    byte _iv[16];
 
     void ecrireUUID(byte* destination);
 
@@ -222,6 +205,10 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     bool transmettrePaquetIv(byte noPaquet, byte* iv);
     bool transmettrePaquetCrypte(byte taillePaquet, byte* buffer);
     bool transmettreMessageCrypte(byte taillePayload, byte* buffer);
+
+    void setIvBuffer(byte* buffer);
+    byte* getIvBuffer();  // Retourne le buffer avec le IV confirme comme recu cote serveur - permet d'utilise message cryptes (one shot)
+
 };
 
 

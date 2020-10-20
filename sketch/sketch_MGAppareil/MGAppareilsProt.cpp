@@ -112,6 +112,10 @@ byte* MGProtocoleV9::getIvBuffer() {
   return (byte*) &_iv;
 }
 
+void MGProtocoleV9::setIvBuffer(byte* buffer) {
+  memcpy(&_iv, buffer, 16);
+}
+
 bool MGProtocoleV9::isTransmissionOk() {
   return _transmissionOk;
 }
@@ -253,7 +257,14 @@ byte MGProtocoleV9::transmettrePaquet0(uint16_t typeMessage) {
       // Transmettre IV utilise pour crypter/decrypter message
       // Ce message indique implicitement que le reste de la transmission est cryptee
       // Auth data est le paquet 0 au complet, garanti la provenance
-      transmettrePaquetIv(1, (byte*)&iv);
+      if( transmettrePaquetIv(1, (byte*)&iv) ) {
+        // Le IV a ete recu, le serveur va maintenant utiliser cette version
+        // On le conserve pour le reutilise dans des messages simples au besoin
+        setIvBuffer((byte*)&iv);
+        #ifdef LOGGING_DEV_RADIO
+          Serial.println(F("Confirmation IV recu"));
+        #endif
+      }
       
       nombrePaquets++;
     }
@@ -542,7 +553,7 @@ bool MGProtocoleV9::transmettrePaquetLectureAntenne(uint16_t noPaquet, Fournisse
   return transmettrePaquetCrypte(PAYLOAD_TAILLE_SIMPLE, (byte*)&buffer);
 }
 
-bool MGProtocoleV9::transmettreLectureTHAntennePower(FournisseurLectureTHAntennePower* fournisseur) {
+bool MGProtocoleV9::transmettreLectureTHAntennePower(FournisseurLectureTH* th, FournisseurLectureAntenne* antenne, FournisseurLecturePower* power) {
   // Format message THP (Temperatures, Humidite)
   // Version       - 1 byte
   // Node ID       - 1 byte
@@ -559,9 +570,9 @@ bool MGProtocoleV9::transmettreLectureTHAntennePower(FournisseurLectureTHAntenne
   uint16_t typeMessage = MSG_TYPE_LECTURE_TH_ANTENNE_POWER;
   byte buffer[32];
 
-  int temperature = fournisseur->temperature();
-  uint16_t humidite = fournisseur->humidite();
-  uint16_t millivolt = fournisseur->millivolt();
+  int temperature = th->temperature();
+  uint16_t humidite = th->humidite();
+  uint16_t millivolt = (uint16_t)power->millivolt();
 
   buffer[0] = VERSION_PROTOCOLE;
   buffer[1] = _nodeId[0];
@@ -571,17 +582,12 @@ bool MGProtocoleV9::transmettreLectureTHAntennePower(FournisseurLectureTHAntenne
   // Payload
   memcpy(buffer + 6, &temperature, sizeof(temperature));
   memcpy(buffer + 8, &humidite, sizeof(humidite));
-  buffer[10] = fournisseur->pctSignal();
-  buffer[11] = fournisseur->forceEmetteur();
-  buffer[12] = fournisseur->canal();
-  memcpy(buffer + 13, &millivolt, sizeof(millivolt));
+  memcpy(buffer + 10, &millivolt, sizeof(millivolt));
+  buffer[12] = antenne->pctSignal();
+  buffer[13] = antenne->forceEmetteur();
+  buffer[14] = antenne->canal();
 
   return transmettreMessageCrypte(15, (byte*)&buffer);
-}
-
-
-bool MGProtocoleV9::transmettreLectureTPAntennePower(FournisseurLectureTPAntennePower* fournisseur) {
-  
 }
 
 
