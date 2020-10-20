@@ -15,6 +15,10 @@
 #define ALIMENTATION_BATT_LITHIUM 3
 #define ALIMENTATION_NB_CONFIRMATIONS 5
 
+#define BATTERY_PIN A4
+#define SENSEUR_ALIMENTATION_VCC
+// #define SENSEUR_ALIMENTATION_ANALOG
+
 // volatile int f_wdt=1;
 
 // INSERER DANS LA DEFINITION DU SKETCH (avant setup)
@@ -56,7 +60,7 @@ class ArduinoPower : public FournisseurLecturePower
     bool isAlimentationSecteur();  // True si l'appareil n'est pas sur batterie
 
   private:
-    byte _battery_pin = A4; //BATTERY_PIN_VCC; // Defaut est VCC
+    byte _battery_pin = BATTERY_PIN;
     byte _current_sleep_count = 0; // Cycles actuels
     uint32_t _lectureVcc;
     byte _nbLecturesVerificationTypeCourant = 0; // Nombre de lectures qui confirment le type d'alimentation (secteur, batterie AA ou lithium)

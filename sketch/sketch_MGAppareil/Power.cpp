@@ -3,7 +3,7 @@
 
 bool ArduinoPower::isAlimentationSecteur() {
   // Bypass pour tester comportement batterie en developpeemnt
-  #ifdef MG_DEV_TEST_BATTERIE
+  #if defined(MG_DEV_TEST_BATTERIE) || defined(SENSEUR_ALIMENTATION_VCC) || defined(SENSEUR_ALIMENTATION_ANALOG)
     return false;
   #endif
   
@@ -40,18 +40,12 @@ long ArduinoPower::readVcc() {
 void ArduinoPower::lireVoltageBatterie() {
 
   long voltage = 0;
-  int valuePrecedente = 0;
 
   voltage = readVcc();
-  if( _battery_pin != BATTERY_PIN_VCC ) {
-    for(byte i=0; i<3; i++) {
-      delayMicroseconds(300);
-      int sensorValue = analogRead(_battery_pin);
-      valuePrecedente = max(valuePrecedente, sensorValue);
-    }
-    voltage = map(valuePrecedente, 0, 1023, 0, voltage);
-    // voltage = valuePrecedente;
-  }
+  #ifdef SENSEUR_ALIMENTATION_ANALOG
+    int sensorValue = analogRead(_battery_pin);
+    voltage = map(sensorValue, 0, 1023, 0, voltage);
+  #endif
   _lectureVcc = uint32_t(voltage);
 
   _calculerReservePct();

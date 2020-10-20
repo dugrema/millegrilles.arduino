@@ -124,6 +124,10 @@ bool MGProtocoleV9::isAckRecu() {
   return _ackRecu;
 }
 
+void MGProtocoleV9::setAckRecu() {
+  _ackRecu = true;
+}
+
 bool MGProtocoleV9::isClePriveePrete() {
   return _clePriveePrete;
 }

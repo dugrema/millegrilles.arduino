@@ -352,8 +352,12 @@ bool transmettrePaquets() {
           Serial.println(F("transmettrePaquets: nouveau IV utilise sans confirmation finale..."));
         #endif
         infoReseau.refreshIv = true;
+        transmissionOk = false;
       }
     }
+  } else {
+    // S'assurer de marquer le ACK comme recu - sinon pas de deep sleep
+    prot9.setAckRecu();
   }
 
   #if defined(DHTPIN) && defined(DHTTYPE)
