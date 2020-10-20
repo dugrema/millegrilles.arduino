@@ -78,6 +78,8 @@ struct {
   bool lectureDue = true;
   
   bool bypassSleep = false;
+
+  byte cyclesTransmissionSansInterruption = 0;
 } infoReseau;
 
 struct {
@@ -346,6 +348,7 @@ bool transmettrePaquets() {
       // Paquet de fin avec tag (hash)
       if( prot9.transmettrePaquetFin(2) ) {
         infoReseau.refreshIv = false; // IV pret
+        infoReseau.cyclesTransmissionSansInterruption = 0;
       } else {
         // Erreur - le serveur n'a pas confirme qu'on peut utiliser le nouveau IV...
         #ifdef LOGGING_DEV_RADIO
@@ -357,7 +360,11 @@ bool transmettrePaquets() {
     }
   } else {
     // S'assurer de marquer le ACK comme recu - sinon pas de deep sleep
-    prot9.setAckRecu();
+    prot9.setAckRecu(true);
+    if(infoReseau.cyclesTransmissionSansInterruption++ > 10) {
+      // Accelerer la generation d'un nouveau IV
+      prot9.setAckRecu(false);
+    }
   }
 
   #if defined(DHTPIN) && defined(DHTTYPE)

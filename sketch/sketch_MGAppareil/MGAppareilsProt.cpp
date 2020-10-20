@@ -124,8 +124,8 @@ bool MGProtocoleV9::isAckRecu() {
   return _ackRecu;
 }
 
-void MGProtocoleV9::setAckRecu() {
-  _ackRecu = true;
+void MGProtocoleV9::setAckRecu(bool recu) {
+  _ackRecu = recu;
 }
 
 bool MGProtocoleV9::isClePriveePrete() {

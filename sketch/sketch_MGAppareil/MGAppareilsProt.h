@@ -164,7 +164,7 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     
     bool isTransmissionOk();
     bool isAckRecu();
-    void setAckRecu();
+    void setAckRecu(bool recu);
     byte nombreCyclesAbortConsecutifs();  // Retourne le nombre de transmissions consecutives qui n'ont pas finit avec un ACK
     void resetNombreCyclesAbortConsecutifs();
     bool isClePriveePrete();
