@@ -54,6 +54,10 @@
 #define MSG_TYPE_LECTURE_ONEWIRE 0x105
 #define MSG_TYPE_LECTURE_ANTENNE 0x106
 
+#define MSG_TYPE_LECTURE_TH_ANTENNE_POWER 0x202
+#define MSG_TYPE_LECTURE_TP_ANTENNE_POWER 0x203
+
+
 struct StatTransmissions {
   uint8_t forceSignalPct;
   uint16_t nombreTransmissions;
@@ -102,6 +106,27 @@ class FournisseurLectureAntenne {
     virtual byte canal();         // byte
 };
 
+class FournisseurLectureTHAntennePower {
+  public:
+    virtual int temperature();
+    virtual uint16_t humidite();
+    virtual byte pctSignal();
+    virtual byte forceEmetteur();
+    virtual byte canal();
+    virtual uint16_t millivolt();
+};
+
+class FournisseurLectureTPAntennePower {
+  public:
+    virtual int temperature();
+    virtual uint16_t pression();
+    virtual byte pctSignal();
+    virtual byte forceEmetteur();
+    virtual byte canal();
+    virtual uint16_t millivolt();
+};
+
+
 class MGProtocoleV9 : public FournisseurLectureAntenne {
 
   public:
@@ -122,7 +147,7 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     byte canal();
 
     byte* getCleBuffer(); // Retourne le buffer pour la cle - utiliser pour setter la cle publique distante ou cle secrete
-    // byte* getIvBuffer(); // Retourne le buffer pour la cle - utiliser pour setter la cle publique distante ou cle secrete
+    byte* getIvBuffer();  // Retourne le buffer avec le IV confirme comme recu cote serveur - permet d'utilise message cryptes (one shot)
     byte* executerDh1();  // DH passe 1 pour generer cle privee. Retourne byte* vers cle publique.
     bool executerDh2();   // DH passe 2 pour extraire cle secrete. Retourne false si le processus a echoue.
 
@@ -146,6 +171,13 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     bool transmettrePaquetLecturePower(uint16_t noPaquet, FournisseurLecturePower* fournisseur);
     bool transmettrePaquetLectureOneWire(uint16_t noPaquet, FournisseurLectureOneWire* fournisseur);
     bool transmettrePaquetLectureAntenne(uint16_t noPaquet, FournisseurLectureAntenne* fournisseur);
+
+    // Messages all-included, dependent du setup UUID, cle, iv prealables
+    bool transmettreLectureTHAntennePower(FournisseurLectureTHAntennePower* fournisseur);
+    bool transmettreLectureTPAntennePower(FournisseurLectureTPAntennePower* fournisseur);
+    
+    // bool transmettrePaquetLectureOneWire(uint16_t noPaquet, FournisseurLectureOneWire* fournisseur);
+    
     bool isTransmissionOk();
     bool isAckRecu();
     byte nombreCyclesAbortConsecutifs();  // Retourne le nombre de transmissions consecutives qui n'ont pas finit avec un ACK
@@ -180,6 +212,7 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     bool _ackRecu = true;          // Faux si on attend un ACK pour une transmission
     bool _clePriveePrete;          // Vrai si la cle privee est deja generee
     bool _cryptageActif = false;   // Vrai si on utilise le cryptage
+    byte _iv[16];
 
     void ecrireUUID(byte* destination);
 
@@ -188,6 +221,7 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     bool transmettrePaquet(byte taillePayload, byte* buffer);
     bool transmettrePaquetIv(byte noPaquet, byte* iv);
     bool transmettrePaquetCrypte(byte taillePaquet, byte* buffer);
+    bool transmettreMessageCrypte(byte taillePayload, byte* buffer);
 };
 
 

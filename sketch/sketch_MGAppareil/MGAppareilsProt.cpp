@@ -108,9 +108,9 @@ byte* MGProtocoleV9::getCleBuffer() {
   return (byte*) &_cle;
 }
 
-//byte* MGProtocoleV9::getIvBuffer() {
-//  return (byte*) &_iv;
-//}
+byte* MGProtocoleV9::getIvBuffer() {
+  return (byte*) &_iv;
+}
 
 bool MGProtocoleV9::isTransmissionOk() {
   return _transmissionOk;
@@ -540,6 +540,67 @@ bool MGProtocoleV9::transmettrePaquetLectureAntenne(uint16_t noPaquet, Fournisse
   buffer[8] = fournisseur->canal();
 
   return transmettrePaquetCrypte(PAYLOAD_TAILLE_SIMPLE, (byte*)&buffer);
+}
+
+bool MGProtocoleV9::transmettreLectureTHAntennePower(FournisseurLectureTHAntennePower* fournisseur) {
+  // Format message THP (Temperatures, Humidite)
+  // Version       - 1 byte
+  // Node ID       - 1 byte
+  // noPaquet      - 2 bytes - 0 hard coded
+  // typeMessage   - 2 bytes - MSG_TYPE_LECTURE_TH_ANTENNE_POWER
+  // temperature   - 2 bytes
+  // humidite      - 2 bytes
+  // pctSignal     - 1 byte
+  // forceEmetteur - 1 byte
+  // canal         - 1 byte
+  // batterie      - 2 bytes
+  // compute tag   - 16 bytes
+
+  uint16_t typeMessage = MSG_TYPE_LECTURE_TH_ANTENNE_POWER;
+  byte buffer[32];
+
+  int temperature = fournisseur->temperature();
+  uint16_t humidite = fournisseur->humidite();
+  uint16_t millivolt = fournisseur->millivolt();
+
+  buffer[0] = VERSION_PROTOCOLE;
+  buffer[1] = _nodeId[0];
+  buffer[2] = 0; buffer[3] = 0;  // Numero paquet 0, hard coded
+  memcpy(buffer + 4, &typeMessage, sizeof(typeMessage));
+
+  // Payload
+  memcpy(buffer + 6, &temperature, sizeof(temperature));
+  memcpy(buffer + 8, &humidite, sizeof(humidite));
+  buffer[10] = fournisseur->pctSignal();
+  buffer[11] = fournisseur->forceEmetteur();
+  buffer[12] = fournisseur->canal();
+  memcpy(buffer + 13, &millivolt, sizeof(millivolt));
+
+  return transmettreMessageCrypte(15, (byte*)&buffer);
+}
+
+
+bool MGProtocoleV9::transmettreLectureTPAntennePower(FournisseurLectureTPAntennePower* fournisseur) {
+  
+}
+
+
+// Un message crypte est un payload complet qui contient les donnees et le compute tag
+// Requiert que l'identification, preparation de la cle et du IV soit deja fait
+bool MGProtocoleV9::transmettreMessageCrypte(byte taillePayload, byte* buffer) {
+
+  // Initialiser chiffrage avec 6 bytes de routage et le IV
+  initCipher(buffer, 6, getIvBuffer());
+
+  // Les 6 premiers bytes sont utilise pour routage, ils ne doivent pas etre crypte
+  byte* bufferData = buffer + 6;
+
+  // Crypter buffer
+  cipher.encrypt(bufferData, bufferData, taillePayload - 6);
+  cipher.computeTag(buffer + taillePayload, 16);
+
+  return transmettrePaquet(taillePayload, buffer);
+
 }
 
 //  Recevoir information
