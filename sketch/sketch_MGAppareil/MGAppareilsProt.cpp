@@ -590,6 +590,43 @@ bool MGProtocoleV9::transmettreLectureTHAntennePower(FournisseurLectureTH* th, F
   return transmettreMessageCrypte(15, (byte*)&buffer);
 }
 
+bool MGProtocoleV9::transmettreLectureTPAntennePower(FournisseurLectureTP* tp, FournisseurLectureAntenne* antenne, FournisseurLecturePower* power) {
+  // Format message THP (Temperatures, Humidite)
+  // Version       - 1 byte
+  // Node ID       - 1 byte
+  // noPaquet      - 2 bytes - 0 hard coded
+  // typeMessage   - 2 bytes - MSG_TYPE_LECTURE_TH_ANTENNE_POWER
+  // temperature   - 2 bytes
+  // pression      - 2 bytes
+  // pctSignal     - 1 byte
+  // forceEmetteur - 1 byte
+  // canal         - 1 byte
+  // batterie      - 2 bytes
+  // compute tag   - 16 bytes
+
+  uint16_t typeMessage = MSG_TYPE_LECTURE_TP_ANTENNE_POWER;
+  byte buffer[32];
+
+  int temperature = tp->temperature();
+  uint16_t pression = tp->pression();
+  uint16_t millivolt = (uint16_t)power->millivolt();
+
+  buffer[0] = VERSION_PROTOCOLE;
+  buffer[1] = _nodeId[0];
+  buffer[2] = 0; buffer[3] = 0;  // Numero paquet 0, hard coded
+  memcpy(buffer + 4, &typeMessage, sizeof(typeMessage));
+
+  // Payload
+  memcpy(buffer + 6, &temperature, sizeof(temperature));
+  memcpy(buffer + 8, &pression, sizeof(pression));
+  memcpy(buffer + 10, &millivolt, sizeof(millivolt));
+  buffer[12] = antenne->pctSignal();
+  buffer[13] = antenne->forceEmetteur();
+  buffer[14] = antenne->canal();
+
+  return transmettreMessageCrypte(15, (byte*)&buffer);
+}
+
 
 // Un message crypte est un payload complet qui contient les donnees et le compute tag
 // Requiert que l'identification, preparation de la cle et du IV soit deja fait

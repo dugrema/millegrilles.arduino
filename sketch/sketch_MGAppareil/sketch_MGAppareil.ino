@@ -149,7 +149,7 @@ void setup() {
   radio.begin();
   radio.setChannel(RADIO_CANAL);
   radio.setAutoAck(true);
-  radio.setRetries(3, 2);
+  radio.setRetries(6, 2);
   radio.setDataRate(RF24_250KBPS);
   radio.setCRCLength(RF24_CRC_16);
   radio.setPALevel(RF24_PA_MIN);  // Commencer avec emission MIN, va etre ajuste
@@ -360,6 +360,10 @@ bool transmettrePaquets() {
     transmissionOk &= prot9.transmettreLectureTHAntennePower(&dht, &prot9, &power);
   #endif 
 
+  // Adafruit BMP
+  #ifdef BUS_MODE_I2C
+    transmissionOk &= prot9.transmettreLectureTPAntennePower(&bmp, &prot9, &power);
+  #endif
 
   return transmissionOk;
 

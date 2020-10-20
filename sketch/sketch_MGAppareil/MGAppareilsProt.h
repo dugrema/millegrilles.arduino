@@ -156,7 +156,7 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
 
     // Messages all-included, dependent du setup UUID, cle, iv prealables
     bool transmettreLectureTHAntennePower(FournisseurLectureTH* th, FournisseurLectureAntenne* antenne, FournisseurLecturePower* power);
-    // bool transmettreLectureTPAntennePower(FournisseurLectureTPAntennePower* fournisseur);
+    bool transmettreLectureTPAntennePower(FournisseurLectureTP* tp, FournisseurLectureAntenne* antenne, FournisseurLecturePower* power);
     
     // bool transmettrePaquetLectureOneWire(uint16_t noPaquet, FournisseurLectureOneWire* fournisseur);
     

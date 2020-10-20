@@ -42,14 +42,14 @@ void ArduinoPower::lireVoltageBatterie() {
   long voltage = 0;
   int valuePrecedente = 0;
 
-  // voltage = readVcc();
+  voltage = readVcc();
   if( _battery_pin != BATTERY_PIN_VCC ) {
-    for(byte i=0; i<2; i++) {
-      delay(1);
+    for(byte i=0; i<3; i++) {
+      delayMicroseconds(300);
       int sensorValue = analogRead(_battery_pin);
       valuePrecedente = max(valuePrecedente, sensorValue);
     }
-    voltage = map(valuePrecedente, 0, 1023, 0, 3250L);
+    voltage = map(valuePrecedente, 0, 1023, 0, voltage);
     // voltage = valuePrecedente;
   }
   _lectureVcc = uint32_t(voltage);
