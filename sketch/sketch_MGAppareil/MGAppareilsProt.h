@@ -60,6 +60,7 @@
 // Message chiffre - paquet 32 bytes tout inclus (02xx)
 #define MSG_TYPE_LECTURE_TH_ANTENNE_POWER 0x0202
 #define MSG_TYPE_LECTURE_TP_ANTENNE_POWER 0x0203
+#define MSG_TYPE_LECTURE_ONEWIRE          0x0204
 
 
 struct StatTransmissions {
@@ -157,6 +158,7 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     // Messages all-included, dependent du setup UUID, cle, iv prealables
     bool transmettreLectureTHAntennePower(FournisseurLectureTH* th, FournisseurLectureAntenne* antenne, FournisseurLecturePower* power);
     bool transmettreLectureTPAntennePower(FournisseurLectureTP* tp, FournisseurLectureAntenne* antenne, FournisseurLecturePower* power);
+    bool transmettreLectureOneWire(FournisseurLectureOneWire* fournisseur);
     
     // bool transmettrePaquetLectureOneWire(uint16_t noPaquet, FournisseurLectureOneWire* fournisseur);
     

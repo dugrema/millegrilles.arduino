@@ -365,13 +365,14 @@ bool transmettrePaquets() {
     transmissionOk &= prot9.transmettreLectureTPAntennePower(&bmp, &prot9, &power);
   #endif
 
-  return transmissionOk;
+  // Dalsemi OneWire (1W)
+  #ifdef BUS_MODE_ONEWIRE
+    transmissionOk &= prot9.transmettreLectureOneWire(&oneWireHandler);
+  #endif
 
-//  // Dalsemi OneWire (1W)
-//  #ifdef BUS_MODE_ONEWIRE
-//    if( ! prot9.transmettrePaquetLectureOneWire(compteurPaquet++, &oneWireHandler) ) return false;
-//  #endif
-//
+  return transmissionOk;
+  
+
 //  // DHT
 //  #if defined(DHTPIN) && defined(DHTTYPE)
 //    if( ! prot9.transmettrePaquetLectureTH(compteurPaquet++, &dht) ) return false;

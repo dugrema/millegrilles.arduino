@@ -561,10 +561,10 @@ bool MGProtocoleV9::transmettreLectureTHAntennePower(FournisseurLectureTH* th, F
   // typeMessage   - 2 bytes - MSG_TYPE_LECTURE_TH_ANTENNE_POWER
   // temperature   - 2 bytes
   // humidite      - 2 bytes
+  // batterie      - 2 bytes
   // pctSignal     - 1 byte
   // forceEmetteur - 1 byte
   // canal         - 1 byte
-  // batterie      - 2 bytes
   // compute tag   - 16 bytes
 
   uint16_t typeMessage = MSG_TYPE_LECTURE_TH_ANTENNE_POWER;
@@ -598,10 +598,10 @@ bool MGProtocoleV9::transmettreLectureTPAntennePower(FournisseurLectureTP* tp, F
   // typeMessage   - 2 bytes - MSG_TYPE_LECTURE_TH_ANTENNE_POWER
   // temperature   - 2 bytes
   // pression      - 2 bytes
+  // batterie      - 2 bytes
   // pctSignal     - 1 byte
   // forceEmetteur - 1 byte
   // canal         - 1 byte
-  // batterie      - 2 bytes
   // compute tag   - 16 bytes
 
   uint16_t typeMessage = MSG_TYPE_LECTURE_TP_ANTENNE_POWER;
@@ -627,6 +627,30 @@ bool MGProtocoleV9::transmettreLectureTPAntennePower(FournisseurLectureTP* tp, F
   return transmettreMessageCrypte(15, (byte*)&buffer);
 }
 
+bool MGProtocoleV9::transmettreLectureOneWire(FournisseurLectureOneWire* fournisseur) {
+  // Format message OneWire - 20 bytes de data
+  // Version       - 1 byte
+  // Node ID       - 1 byte
+  // noPaquet      - 2 bytes - 0 hard coded
+  // typeMessage   - 2 bytes - MSG_TYPE_LECTURE_ONEWIRE
+  // data_onewire  - 20 bytes
+  // compute tag   - 16 bytes
+
+  uint16_t typeMessage = MSG_TYPE_LECTURE_ONEWIRE;
+  byte buffer[32];
+
+  buffer[0] = VERSION_PROTOCOLE;
+  buffer[1] = _nodeId[0];
+  buffer[2] = 0; buffer[3] = 0;  // Numero paquet 0, hard coded
+  memcpy(buffer + 4, &typeMessage, sizeof(typeMessage));
+
+  // Payload
+  memcpy(buffer + 6, fournisseur->adresse(), 8);
+  memcpy(buffer + 14, fournisseur->data(), 12);
+
+  return transmettreMessageCrypte(26, (byte*)&buffer);
+}
+
 
 // Un message crypte est un payload complet qui contient les donnees et le compute tag
 // Requiert que l'identification, preparation de la cle et du IV soit deja fait
@@ -640,7 +664,12 @@ bool MGProtocoleV9::transmettreMessageCrypte(byte taillePayload, byte* buffer) {
 
   // Crypter buffer
   cipher.encrypt(bufferData, bufferData, taillePayload - 6);
-  cipher.computeTag(buffer + taillePayload, 16);
+
+  
+  // Le compute tag est 16 bytes (max) ou sinon la taille restant dans le buffer de 32 bytes
+  byte tailleComputeTag = min(16, 32 - taillePayload);
+  
+  cipher.computeTag(buffer + taillePayload, tailleComputeTag);
 
   return transmettrePaquet(taillePayload, buffer);
 
