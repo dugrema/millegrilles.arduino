@@ -17,7 +17,7 @@
 // Appareils
 
 // Bus TWI / I2C
-// #define BUS_MODE_I2C
+//#define BUS_MODE_I2C
 
 // Bus OneWire, utilise pour thermometres DS18B20/DS18S20.
 //#define BUS_MODE_ONEWIRE
@@ -50,7 +50,8 @@
 #define NODE_ID_DEFAULT 1
 #define PIN_LED 6
 #define RANDOM_LOWENTROPY_MAXCOUNT 32
-#define PAQUETS_ECHECS_CONSECUTIFS_RESET 3
+#define PAQUETS_ECHECS_CONSECUTIFS_RESET 6
+#define MESSAGES_AVANT_RETRANSMISSION_IV 10
 
 // Version du protocole de transmission NRF24
 #define VERSION_PROTOCOLE 9

@@ -336,7 +336,8 @@ bool transmettrePaquets() {
     Serial.println(F("Transmettre lectures"));
   #endif
 
-  if( RNG.available(16) || infoReseau.refreshIv ) {
+  if( RNG.available(4) || infoReseau.refreshIv ) {
+    // Utiliser 4 bytes d'entropie - 16 bytes ideal mais trop long sur batterie
     #ifdef LOGGING_DEV_RADIO
       Serial.println(F("transmettrePaquets: entropie OK, transmettre nouveau IV"));
     #endif 
@@ -359,11 +360,12 @@ bool transmettrePaquets() {
       }
     }
   } else {
-    // S'assurer de marquer le ACK comme recu - sinon pas de deep sleep
-    prot9.setAckRecu(true);
-    if(infoReseau.cyclesTransmissionSansInterruption++ > 10) {
-      // Accelerer la generation d'un nouveau IV
+    if(infoReseau.cyclesTransmissionSansInterruption++ > MESSAGES_AVANT_RETRANSMISSION_IV) {
+      // Accelerer la generation d'un nouveau IV, bloque le deep sleep
       prot9.setAckRecu(false);
+    } else {
+      // S'assurer de marquer le ACK comme recu - sinon pas de deep sleep
+      prot9.setAckRecu(true);
     }
   }
 
