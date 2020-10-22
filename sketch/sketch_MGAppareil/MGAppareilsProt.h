@@ -199,6 +199,7 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     bool _ackRecu = true;          // Faux si on attend un ACK pour une transmission
     bool _clePriveePrete;          // Vrai si la cle privee est deja generee
     bool _cryptageActif = false;   // Vrai si on utilise le cryptage
+    bool _overrideIvInitial = true;  // Utilise pour sauvegarder le IV meme si pas confirme
 
     void ecrireUUID(byte* destination);
 
@@ -208,7 +209,6 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     bool transmettrePaquetIv(byte noPaquet, byte* iv);
     bool transmettrePaquetCrypte(byte taillePaquet, byte* buffer);
     bool transmettreMessageCrypte(byte taillePayload, byte* buffer);
-
     void setIvBuffer(byte* buffer);
     byte* getIvBuffer();  // Retourne le buffer avec le IV confirme comme recu cote serveur - permet d'utilise message cryptes (one shot)
 

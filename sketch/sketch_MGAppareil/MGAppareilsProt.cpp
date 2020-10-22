@@ -268,9 +268,13 @@ byte MGProtocoleV9::transmettrePaquet0(uint16_t typeMessage) {
         #ifdef LOGGING_DEV_RADIO
           Serial.println(F("Confirmation IV recu"));
         #endif
+
+        nombrePaquets++;
+
+      } else if( _overrideIvInitial ) {
+        _overrideIvInitial = false;  // Toggle pour faire la sauvegarde une seule fois sans confirmation
+        setIvBuffer((byte*)&iv);
       }
-      
-      nombrePaquets++;
     }
 
     return nombrePaquets;

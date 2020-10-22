@@ -65,6 +65,8 @@ struct {
 
   long derniereAction = 0;  // Utiliser pour derminer prochaine action (sleep ou lecture selon power mode)
 
+  byte cyclesTransmissionSansInterruption = 0;
+
   // bool ivUsed = true;  // Va creer un IV random avant la premiere transmission
   bool refreshIv = true;  // Force la transmission d'un nouveau IV
 
@@ -79,7 +81,6 @@ struct {
   
   bool bypassSleep = false;
 
-  byte cyclesTransmissionSansInterruption = 0;
 } infoReseau;
 
 struct {
@@ -118,7 +119,6 @@ volatile int f_wdt=1;
 void setup() {
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, HIGH);
-  
   Serial.begin(115200);
 
   #ifdef LOGGING_DEV_RADIO
@@ -357,10 +357,11 @@ bool transmettrePaquets() {
         #endif
         infoReseau.refreshIv = true;
         transmissionOk = false;
+        infoReseau.cyclesTransmissionSansInterruption = MESSAGES_AVANT_RETRANSMISSION_IV;
       }
     }
   } else {
-    if(infoReseau.cyclesTransmissionSansInterruption++ > MESSAGES_AVANT_RETRANSMISSION_IV) {
+    if(infoReseau.cyclesTransmissionSansInterruption++ >= MESSAGES_AVANT_RETRANSMISSION_IV) {
       // Accelerer la generation d'un nouveau IV, bloque le deep sleep
       prot9.setAckRecu(false);
     } else {
@@ -385,27 +386,6 @@ bool transmettrePaquets() {
 
   return transmissionOk;
   
-
-//  // DHT
-//  #if defined(DHTPIN) && defined(DHTTYPE)
-//    if( ! prot9.transmettrePaquetLectureTH(compteurPaquet++, &dht) ) return false;
-//  #endif 
-//
-//  // Adafruit BMP
-//  #ifdef BUS_MODE_I2C
-//    if( ! prot9.transmettrePaquetLectureTP(compteurPaquet++, &bmp) ) return false;
-//  #endif
-//
-//  // Power info
-//  prot9.transmettrePaquetLecturePower(compteurPaquet++, &power);
-//
-//  // Antenne info
-//  prot9.transmettrePaquetLectureAntenne(compteurPaquet++, &prot9);
-//
-//  // Paquet de fin avec tag (hash)
-//  prot9.transmettrePaquetFin(compteurPaquet);
-//
-//  return prot9.isTransmissionOk();
 }
 
 bool transmettreClePublique() {
