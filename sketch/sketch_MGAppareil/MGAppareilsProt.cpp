@@ -192,12 +192,12 @@ bool MGProtocoleV9::initCipher(byte* authData, byte authDataLen, byte* iv) {
   cipher.clear();
     
   if (!cipher.setKey((byte*)&_cle, cipher.keySize())) {
-      Serial.print("setKey ");
+      Serial.print(F("setKey "));
       return false;
   }
 
   if (!cipher.setIV(iv, 16)) {
-      Serial.print("setIV ");
+      Serial.print(F("setIV "));
       return false;
   }
 
@@ -255,6 +255,7 @@ byte MGProtocoleV9::transmettrePaquet0(uint16_t typeMessage) {
     if( _cryptageActif ) { // Verifier si cryptage actif
       byte iv[16];
       RNG.rand((byte*)&iv, 16);
+      setIvBuffer((byte*)&iv);  // Conserver le IV pour reutiliser avec messages en un seul paquet
       
       initCipher(buffer, 22, (byte*)&iv);
       
@@ -264,17 +265,18 @@ byte MGProtocoleV9::transmettrePaquet0(uint16_t typeMessage) {
       if( transmettrePaquetIv(1, (byte*)&iv) ) {
         // Le IV a ete recu, le serveur va maintenant utiliser cette version
         // On le conserve pour le reutilise dans des messages simples au besoin
-        setIvBuffer((byte*)&iv);
+        // setIvBuffer((byte*)&iv);
         #ifdef LOGGING_DEV_RADIO
           Serial.println(F("Confirmation IV recu"));
         #endif
 
         nombrePaquets++;
 
-      } else if( _overrideIvInitial ) {
-        _overrideIvInitial = false;  // Toggle pour faire la sauvegarde une seule fois sans confirmation
-        setIvBuffer((byte*)&iv);
-      }
+      } 
+//      else if( _overrideIvInitial ) {
+//        _overrideIvInitial = false;  // Toggle pour faire la sauvegarde une seule fois sans confirmation
+//        setIvBuffer((byte*)&iv);
+//      }
     }
 
     return nombrePaquets;
@@ -372,11 +374,11 @@ bool MGProtocoleV9::transmettrePaquet(byte taillePayload, byte* buffer) {
   
   while(!_transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
     _radio->stopListening();
-    _transmissionOk = _radio->write(buffer, PAYLOAD_TAILLE_SIMPLE, (byte*)&buffer);
+    _transmissionOk = _radio->write(buffer, PAYLOAD_TAILLE_SIMPLE);
 
     uint8_t retransmissions = _radio->getARC();
     #ifdef LOGGING_DEV
-      Serial.print("Retransmissions : "); Serial.println(retransmissions);
+      Serial.print(F("Retransmissions : ")); Serial.println(retransmissions);
     #endif
     stats.nombreTransmissions += RF24_RETRANSMISSIONS;  // retransmissions + 1;
     stats.nombreErreurs += retransmissions;
@@ -659,13 +661,35 @@ bool MGProtocoleV9::transmettreLectureOneWire(FournisseurLectureOneWire* fournis
   return transmettreMessageCrypte(26, (byte*)&buffer);
 }
 
+bool MGProtocoleV9::transmettreMessageIv() {
+  uint16_t typeMessage = MSG_TYPE_IV;
+  byte buffer[32];
+
+  buffer[0] = VERSION_PROTOCOLE;
+  buffer[1] = _nodeId[0];
+  buffer[2] = 0; buffer[3] = 0;  // Numero paquet 0, hard coded
+  memcpy(buffer + 4, &typeMessage, sizeof(typeMessage));
+
+  // Payload, c'est le IV. Ne sera pas chiffre.
+  memcpy(buffer + 6, (byte*)&_iv, 16);
+
+  // Preparer le cipher pour calculer le compute tag (payload pas chiffre)
+  if( initCipher(buffer, 22, (byte*)&_iv) ) {
+    cipher.computeTag(buffer + 22, 10);
+    return transmettrePaquet(sizeof(buffer), buffer);
+  } else {
+    return false;
+  }
+}
 
 // Un message crypte est un payload complet qui contient les donnees et le compute tag
 // Requiert que l'identification, preparation de la cle et du IV soit deja fait
 bool MGProtocoleV9::transmettreMessageCrypte(byte taillePayload, byte* buffer) {
 
   // Initialiser chiffrage avec 6 bytes de routage et le IV
-  initCipher(buffer, 6, getIvBuffer());
+  if( ! initCipher(buffer, 6, getIvBuffer()) ) {
+    return false;
+  }
 
   // Les 6 premiers bytes sont utilise pour routage, ils ne doivent pas etre crypte
   byte* bufferData = buffer + 6;
@@ -678,9 +702,7 @@ bool MGProtocoleV9::transmettreMessageCrypte(byte taillePayload, byte* buffer) {
   byte tailleComputeTag = min(16, 32 - taillePayload);
   
   cipher.computeTag(buffer + taillePayload, tailleComputeTag);
-
   return transmettrePaquet(taillePayload, buffer);
-
 }
 
 //  Recevoir information

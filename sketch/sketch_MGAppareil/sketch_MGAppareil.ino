@@ -370,6 +370,9 @@ bool transmettrePaquets() {
     }
   }
 
+  // Transmet le IV actuel en un seul message - permet de sync avec serveur lors de redemarrage
+  prot9.transmettreMessageIv();
+
   #if defined(DHTPIN) && defined(DHTTYPE)
     transmissionOk &= prot9.transmettreLectureTHAntennePower(&dht, &prot9, &power);
   #endif 

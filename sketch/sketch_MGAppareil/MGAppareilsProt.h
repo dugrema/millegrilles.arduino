@@ -61,6 +61,7 @@
 #define MSG_TYPE_LECTURE_TH_ANTENNE_POWER 0x0202
 #define MSG_TYPE_LECTURE_TP_ANTENNE_POWER 0x0203
 #define MSG_TYPE_LECTURE_ONEWIRE          0x0204
+#define MSG_TYPE_IV                       0x0205
 
 
 struct StatTransmissions {
@@ -156,6 +157,7 @@ class MGProtocoleV9 : public FournisseurLectureAntenne {
     bool transmettrePaquetLectureAntenne(uint16_t noPaquet, FournisseurLectureAntenne* fournisseur);
 
     // Messages all-included, dependent du setup UUID, cle, iv prealables
+    bool transmettreMessageIv();  // Sert a transmettre un IV deja connu dans un message self-contained
     bool transmettreLectureTHAntennePower(FournisseurLectureTH* th, FournisseurLectureAntenne* antenne, FournisseurLecturePower* power);
     bool transmettreLectureTPAntennePower(FournisseurLectureTP* tp, FournisseurLectureAntenne* antenne, FournisseurLecturePower* power);
     bool transmettreLectureOneWire(FournisseurLectureOneWire* fournisseur);
