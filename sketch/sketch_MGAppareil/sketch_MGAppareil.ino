@@ -154,7 +154,12 @@ void setup() {
   radio.setRetries(6, 2);
   radio.setDataRate(RF24_250KBPS);
   radio.setCRCLength(RF24_CRC_16);
-  radio.setPALevel(RF24_PA_MIN);  // Commencer avec emission MIN, va etre ajuste
+
+  #ifdef LOGGING_DEV
+    radio.setPALevel(RF24_PA_LOW);  // DEV, emission force LOW
+  #else
+    radio.setPALevel(RF24_PA_HIGH);  // Emission HIGH
+  #endif
 
   // Garder la radio hors ligne pour generer cle privee (au besoin)
   radio.powerDown();

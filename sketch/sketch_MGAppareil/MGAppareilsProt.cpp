@@ -18,25 +18,25 @@ void MGProtocoleV9::loop() {
     float pctEchec = float(stats.nombreErreurs) / float(stats.nombreTransmissions);
     stats.forceSignalPct = 100 - byte(pctEchec * 100.0f);  // Inverser valeur (100 - pct erreur -> force signal)
     
-    if( pctEchec > 0.85f && currentPALevel < RF24_PA_MAX ) {
-      
-      // Augmenter la puissance d'emission
-      _radio->setPALevel(++currentPALevel);
-      
-      #ifdef LOGGING_DEV
-        Serial.print(F("Augmentation puissance emission. "));
-      #endif
-      
-    } else if( pctEchec < 0.15f && currentPALevel > RF24_PA_MIN ) { 
-      
-      // Diminuer la puissance d'emission
-      _radio->setPALevel(--currentPALevel);
-
-      #ifdef LOGGING_DEV
-        Serial.print(F("Reduction puissance emission. "));
-      #endif
-      
-    } 
+//    if( pctEchec > 0.85f && currentPALevel < RF24_PA_MAX ) {
+//      
+//      // Augmenter la puissance d'emission
+//      _radio->setPALevel(++currentPALevel);
+//      
+//      #ifdef LOGGING_DEV
+//        Serial.print(F("Augmentation puissance emission. "));
+//      #endif
+//      
+//    } else if( pctEchec < 0.15f && currentPALevel > RF24_PA_MIN ) { 
+//      
+//      // Diminuer la puissance d'emission
+//      _radio->setPALevel(--currentPALevel);
+//
+//      #ifdef LOGGING_DEV
+//        Serial.print(F("Reduction puissance emission. "));
+//      #endif
+//      
+//    } 
 
     // Reset stats
     stats.nombreTransmissions = 0;
@@ -105,15 +105,15 @@ void MGProtocoleV9::ecrireUUID(byte* destination) {
 }
 
 byte* MGProtocoleV9::getCleBuffer() {
-  return (byte*) &_cle;
+  return (byte*) _cle;
 }
 
 byte* MGProtocoleV9::getIvBuffer() {
-  return (byte*) &_iv;
+  return (byte*) _iv;
 }
 
 void MGProtocoleV9::setIvBuffer(byte* buffer) {
-  memcpy(&_iv, buffer, 16);
+  memcpy(_iv, buffer, 16);
 }
 
 bool MGProtocoleV9::isTransmissionOk() {
