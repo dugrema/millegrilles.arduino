@@ -1,0 +1,3 @@
+[submodule "libs/CRC32"]
+	path = libs/CRC32
+	url = https://github.com/bakercp/CRC32.git

@@ -399,7 +399,6 @@ bool MGProtocoleV9::transmettrePaquet(byte taillePayload, byte* buffer) {
 bool MGProtocoleV9::transmettrePaquetsClePublique(uint16_t noPaquet) {
   // Transmet une cle publique de 32 bytes en 2 paquets
 
-  // Format message THP (Temperatures, Humidite, Pression Atmospherique)
   // Version - 1 byte
   // Node ID - 1 byte
   // noPaquet - 2 bytes
@@ -409,6 +408,7 @@ bool MGProtocoleV9::transmettrePaquetsClePublique(uint16_t noPaquet) {
   uint16_t typeMessage = MSG_TYPE_CLE_LOCALE_1;
   byte* clePublique = getCleBuffer();
   byte buffer[32];
+  uint32_t checksum = CRC32::calculate(clePublique, 32);  // CRC32 de la cle pour valider reception cote serveur
 
   buffer[0] = VERSION_PROTOCOLE;
   buffer[1] = _nodeId[0];
@@ -424,11 +424,19 @@ bool MGProtocoleV9::transmettrePaquetsClePublique(uint16_t noPaquet) {
   }
 
   // Tramsettre le reste de la cle publique
+  // Version - 1 byte
+  // Node ID - 1 byte
+  // noPaquet - 2 bytes
+  // typeMessage - 2 bytes
+  // clePublique - 6 bytes
+  // CRC32 - 4 bytes
   uint16_t noPaquetSuivant = noPaquet + 1;
   typeMessage = MSG_TYPE_CLE_LOCALE_2;
   memcpy(buffer + 2, &noPaquetSuivant, sizeof(noPaquetSuivant));
   memcpy(buffer + 4, &typeMessage, sizeof(typeMessage));
   memcpy(buffer + 6, clePublique + 26, 6);
+  memcpy(buffer + 12, &checksum, 4);
+  memset(buffer + 16, 0x0, 16);  // Vider le reste du message
 
   transmissionOk = transmettrePaquet(PAYLOAD_TAILLE_SIMPLE, (byte*)&buffer);
 

@@ -1,3 +1,4 @@
+
 #ifndef mgAppareilsProt_config_h
 #define mgAppareilsProt_config_h
 
@@ -5,6 +6,7 @@
 // #include <RF24Mesh.h>
 #include <EEPROM.h>
 #include "Config.h"
+#include <CRC32.h>
 
 // Cryptographie, utilise ISR(WDT_vect)
 #define WATCHDOG_INITD
