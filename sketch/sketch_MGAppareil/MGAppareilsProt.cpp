@@ -372,7 +372,7 @@ bool MGProtocoleV9::transmettrePaquet(byte taillePayload, byte* buffer) {
   // Compter le nombre de paquets depuis depuis reset stats
   stats.nombrePaquets++;
   
-  while(!_transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
+  //while(!_transmissionOk && compteurTransmissions++ < LIMITE_RETRANSMISSION) {
     _radio->stopListening();
     _transmissionOk = _radio->write(buffer, PAYLOAD_TAILLE_SIMPLE);
 
@@ -380,18 +380,18 @@ bool MGProtocoleV9::transmettrePaquet(byte taillePayload, byte* buffer) {
     #ifdef LOGGING_DEV
       Serial.print(F("Retransmissions : ")); Serial.println(retransmissions);
     #endif
-    stats.nombreTransmissions += RF24_RETRANSMISSIONS;  // retransmissions + 1;
-    stats.nombreErreurs += retransmissions;
+//    stats.nombreTransmissions += RF24_RETRANSMISSIONS;  // retransmissions + 1;
+//    stats.nombreErreurs += retransmissions;
 
-//    // Cumuler stats de transmission pour diagnostic
-//    stats.nombreTransmissions++;
-//    if( ! _transmissionOk ) {
-//      stats.nombreErreurs++;
-//    }
+    // Cumuler stats de transmission pour diagnostic
+    stats.nombreTransmissions++;
+    if( ! _transmissionOk ) {
+      stats.nombreErreurs++;
+    }
     
     _radio->startListening();
-    delayMicroseconds(150);
-  }
+  //  delayMicroseconds(150);
+  //}
   
   return _transmissionOk;
 }
@@ -409,6 +409,18 @@ bool MGProtocoleV9::transmettrePaquetsClePublique(uint16_t noPaquet) {
   uint16_t typeMessage = MSG_TYPE_CLE_LOCALE_1;
   byte* clePublique = getCleBuffer();
   byte buffer[32];
+  CRC32 crc;
+
+  // Utiliser buffer pour recevoir UUID temporairement, calculer CRC du UUID
+  ecrireUUID(buffer);
+  for(byte i=0; i<16; i++) {
+    crc.update(buffer[i]);
+  }
+  // Ajouter cle publique au CRC
+  for(byte i=0; i<32; i++) {
+    crc.update(clePublique[i]);
+  }
+  uint32_t checksum = crc.finalize(); // CRC32::calculate(clePublique, 32);  // CRC32 de la cle pour valider reception cote serveur
 
   buffer[0] = VERSION_PROTOCOLE;
   buffer[1] = _nodeId[0];
@@ -671,10 +683,10 @@ bool MGProtocoleV9::transmettreMessageIv() {
   memcpy(buffer + 4, &typeMessage, sizeof(typeMessage));
 
   // Payload, c'est le IV. Ne sera pas chiffre.
-  memcpy(buffer + 6, (byte*)&_iv, 16);
+  memcpy(buffer + 6, _iv, 16);
 
   // Preparer le cipher pour calculer le compute tag (payload pas chiffre)
-  if( initCipher(buffer, 22, (byte*)&_iv) ) {
+  if( initCipher(buffer, 22, _iv) ) {
     cipher.computeTag(buffer + 22, 10);
     return transmettrePaquet(sizeof(buffer), buffer);
   } else {

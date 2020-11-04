@@ -15,6 +15,8 @@
 #include <Acorn128.h>
 #include <Curve25519.h>
 #include <RNG.h>
+#include <CRC32.h>
+
 
 #define CLE_PRIVEE_ETAT_PRETE 1
 

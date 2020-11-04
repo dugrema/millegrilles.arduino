@@ -81,6 +81,8 @@ struct {
   
   bool bypassSleep = false;
 
+  bool clePubliqueDansBuffer = false;  // Indique que la cle publique est prete a transmettre dans buffer cle
+
 } infoReseau;
 
 struct {
@@ -151,7 +153,7 @@ void setup() {
   radio.begin();
   radio.setChannel(RADIO_CANAL);
   radio.setAutoAck(true);
-  radio.setRetries(6, 2);
+  radio.setRetries(6, 5);
   radio.setDataRate(RF24_250KBPS);
   radio.setCRCLength(RF24_CRC_16);
 
@@ -323,10 +325,15 @@ void actionTransmission() {
       Serial.print(F("Transmission lectures, erreur: "));
       Serial.println(erreurTransmission);
     #endif
-
+ 
   } else if(modePairing == PAIRING_ADRESSE_DHCP_ASSIGNEE) {
     // Transmettre l'information de pairing avec la cle publique
-    transmettreClePublique();
+    if(infoReseau.clePubliqueDansBuffer) {
+      transmettreClePublique();
+    } else {
+      // On a recu une partie de la cle du serveur mais la reception a echoue, 
+      modePairing = PAIRING_PAS_INIT;  // Reset pairing, va faire regenerer la cle publique dans le buffer
+    }
   }
 
   // Indique temps de la derniere action
@@ -400,6 +407,8 @@ bool transmettreClePublique() {
   #ifdef LOGGING_DEV_RADIO
     Serial.println(F("Transmettre cle publique"));
   #endif
+
+  // if( ! infoReseau.clePubliqueDansBuffer ) return false;  // La cle publique n'est pas chargee (e.g. override par reception cle serveur)
   
   // Debut de la transmission
   byte compteurPaquet = prot9.transmettrePaquet0(MSG_TYPE_NOUVELLE_CLE);
@@ -457,6 +466,7 @@ void ecouterReseau() {
       
       prot9.executerDh1();
       modePairing = PAIRING_CLE_PRIVEE_PRETE;
+      infoReseau.clePubliqueDansBuffer = true;  // Cle publique a ete placee dans le buffer
 
       #ifdef LOGGING_DEV_RADIO
         Serial.print(F("Cle publique : "));
@@ -598,6 +608,7 @@ void recevoirClePubliqueServeur(byte* data) {
   if(typeMessage == MSG_TYPE_CLE_DISTANTE_1) {
     
     // Copier la premiere partie de la cle (28 bytes), reset reste du buffer
+    infoReseau.clePubliqueDansBuffer = false;  // Override cle publique
     memcpy(prot9.getCleBuffer(), data + 4, 28);
     memset(prot9.getCleBuffer() + 28, 0x0, 4);
     
@@ -607,6 +618,7 @@ void recevoirClePubliqueServeur(byte* data) {
     // fin du buffer de cle est 0x0
     //if(memcmp(prot9.getCleBuffer() + 28, 0x0, 4) == 0) {
       // Copier la deuxieme partie de la cle
+      infoReseau.clePubliqueDansBuffer = false;  // Override cle publique
       memcpy(prot9.getCleBuffer() + 28, data + 4, 4);
 
       #ifdef LOGGING_DEV_RADIO
