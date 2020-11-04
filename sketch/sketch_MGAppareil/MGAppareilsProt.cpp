@@ -441,6 +441,7 @@ bool MGProtocoleV9::transmettrePaquetsClePublique(uint16_t noPaquet) {
   memcpy(buffer + 2, &noPaquetSuivant, sizeof(noPaquetSuivant));
   memcpy(buffer + 4, &typeMessage, sizeof(typeMessage));
   memcpy(buffer + 6, clePublique + 26, 6);
+  memcpy(buffer + 12, &checksum, sizeof(checksum));
 
   transmissionOk = transmettrePaquet(PAYLOAD_TAILLE_SIMPLE, (byte*)&buffer);
 

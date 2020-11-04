@@ -621,30 +621,48 @@ void recevoirClePubliqueServeur(byte* data) {
       infoReseau.clePubliqueDansBuffer = false;  // Override cle publique
       memcpy(prot9.getCleBuffer() + 28, data + 4, 4);
 
-      #ifdef LOGGING_DEV_RADIO
+      uint32_t checksumRecu;
+      memcpy(&checksumRecu, data + 8, 4);
+
+      uint32_t checksum = CRC32::calculate(prot9.getCleBuffer(), 32);
+      bool checksumMatch = checksumRecu == checksum;
+
+      #if defined(LOGGING_DEV_RADIO) || defined(LOGGING_DEV_CLE)
         Serial.print(F("Cle publique recue : "));
         printArray(prot9.getCleBuffer(), 32);
-
+        if(checksumMatch) Serial.println(F("Match"));
+        else {
+          Serial.print(F("No match "));
+          Serial.print(checksumRecu);
+          Serial.print(F("!="));
+          Serial.println(checksum);
+        }
         // Serial.print(F("Cle secrete : "));
       #endif
-      
-      if ( prot9.executerDh2() ) {
-        // Activer le cryptage pour tous les messages subsequents
-        prot9.activerCryptage();
-        #ifdef LOGGING_DEV
-          printArray(prot9.getCleBuffer(), 32);
-        #endif
-  
-        modePairing = PAIRING_SERVEUR_CLE;
-        infoReseau.lectureDue = true;  // Preparer la premiere transmission de contenu
-        infoReseau.derniereAction = millis();
-        infoReseau.attenteTransmission = random(200, 250);
+
+      if(checksumMatch) {
+        if ( prot9.executerDh2() ) {
+          // Activer le cryptage pour tous les messages subsequents
+          prot9.activerCryptage();
+          #ifdef LOGGING_DEV
+            printArray(prot9.getCleBuffer(), 32);
+          #endif
+    
+          modePairing = PAIRING_SERVEUR_CLE;
+          infoReseau.lectureDue = true;  // Preparer la premiere transmission de contenu
+          infoReseau.derniereAction = millis();
+          infoReseau.attenteTransmission = random(200, 250);
+        } else {
+          #ifdef LOGGING_DEV_RADIO
+            Serial.println(F("DH2 Erreur decodage cle, reset"));
+          #endif
+          modePairing = PAIRING_ADRESSE_DHCP_ASSIGNEE;
+        }
       } else {
-        #ifdef LOGGING_DEV_RADIO
-          Serial.println(F("DH2 Erreur decodage cle, reset"));
-        #endif
-        modePairing = PAIRING_ADRESSE_DHCP_ASSIGNEE;
+        // La cle recue est invalide et a ecrase le buffer avec cle publique, on recommence le handshake
+        modePairing = PAIRING_PAS_INIT;
       }
+
 
   }
 }

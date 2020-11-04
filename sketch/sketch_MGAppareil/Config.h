@@ -3,6 +3,7 @@
 #define MGCONFIG_config_h
 
 #include <RF24.h>
+#include <CRC32.h>
 
 // Modes pour debugger ou travail developpement
 //#define MG_DEV
@@ -10,6 +11,7 @@
 
 // #define LOGGING_DEV
 //#define LOGGING_DEV_RADIO
+//#define LOGGING_DEV_CLE
 
 //#define MG_DEV_TEST_BATTERIE
 
