@@ -19,7 +19,7 @@
 // Appareils
 
 // Bus TWI / I2C
-//#define BUS_MODE_I2C
+#define BUS_MODE_I2C
 
 // Bus OneWire, utilise pour thermometres DS18B20/DS18S20.
 //#define BUS_MODE_ONEWIRE
