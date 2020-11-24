@@ -105,7 +105,7 @@ ArduinoPower power;
 volatile int f_wdt=1;
 
 
-// Conflit avec lib crypto.h, __vector_6 (wachdog) deja defini
+// Conflit avec lib RNG.h (arduinocryptolibs), __vector_6 (wachdog) deja defini
 #ifndef WATCHDOG_INITD
 #define WATCHDOG_INITD
   ISR(WDT_vect)
@@ -132,6 +132,9 @@ void setup() {
   #elif defined(MG_INT)
     Serial.println(F(" ****** Mode operation INT ****** "));
   #endif
+
+  power.resetPrescaler();
+  power.dogFood();
 
   chargerConfiguration();
 
@@ -167,7 +170,9 @@ void setup() {
   radio.powerDown();
 
   digitalWrite(PIN_LED, LOW);
+  power.dogFood();
   delay(200);
+  power.dogFood();
   digitalWrite(PIN_LED, HIGH);
 
   Serial.print(F("Setup termine apres "));
@@ -202,9 +207,13 @@ void activerRadioDhcp() {
 void loop() {
 
   // Perform regular housekeeping on the random number generator.
+  power.dogFood();
   RNG.loop();
+  
   // Entretien radio/protocole
   prot9.loop();
+
+  power.dogFood();
 
   infoReseau.bypassSleep = false;
 
@@ -219,6 +228,8 @@ void loop() {
     #endif
 
     actionTransmission();
+
+    // power.reboot();
   }
 
   // Ecouter reseau

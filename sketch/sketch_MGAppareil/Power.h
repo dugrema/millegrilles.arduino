@@ -59,6 +59,9 @@ class ArduinoPower : public FournisseurLecturePower
     byte reservePct();
     byte alerte();
     bool isAlimentationSecteur();  // True si l'appareil n'est pas sur batterie
+    void reboot();  // Redemarre microcontrolleur
+    void dogFood();
+    void resetPrescaler();
 
   private:
     byte _battery_pin = BATTERY_PIN;
@@ -72,7 +75,6 @@ class ArduinoPower : public FournisseurLecturePower
     void _calculerReservePct();
 
     void setPrescalerMax();
-    void resetPrescaler();
 
     void sleep(byte cycles);
 

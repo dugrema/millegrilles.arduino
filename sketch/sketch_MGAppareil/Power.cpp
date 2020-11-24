@@ -226,7 +226,9 @@ byte ArduinoPower::alerte() {
 }
 
 void ArduinoPower::setPrescalerMax() {
-    /* Clear the reset flag. */
+  cli();  // Empecher interrupts
+  
+  /* Clear the reset flag. */
   MCUSR &= ~(1<<WDRF);
   /* In order to change WDE or the prescaler, we need to
    * set WDCE (This will allow updates for 4 clock cycles).
@@ -236,10 +238,14 @@ void ArduinoPower::setPrescalerMax() {
   WDTCSR = 1<<WDP0 | 1<<WDP3; /* 8.0 seconds */
   /* Enable the WD interrupt (note no reset). */
   WDTCSR |= _BV(WDIE);
+
+  sei();
 }
 
 void ArduinoPower::resetPrescaler() {
-    /* Clear the reset flag. */
+  cli();  // Empecher interrupts
+  
+  /* Clear the reset flag. */
   MCUSR &= ~(1<<WDRF);
   
   /* In order to change WDE or the prescaler, we need to
@@ -252,8 +258,21 @@ void ArduinoPower::resetPrescaler() {
   
   /* Enable the WD interrupt (note no reset). */
   WDTCSR |= _BV(WDIE);
+  sei();
 }
 
+void ArduinoPower::reboot() {
+  //Serial.println(F("Reboot"));
+//  resetPrescaler();
+//  wdt_enable(WDTO_4S);
+//  wdt_reset(); // Reset watchdog
+  asm volatile("jmp 0");
+  //Serial.println(F("Reboot echec"));
+}
+
+void ArduinoPower::dogFood() {
+  wdt_reset();
+}
 
 void ArduinoPower::sleep(byte cycles) {
   byte sleepCount = 0;
@@ -279,7 +298,7 @@ void ArduinoPower::sleep(byte cycles) {
   /* The program will continue from here after the WDT timeout*/
   sleep_disable(); /* First thing to do is disable sleep. */
 
-  resetPrescaler();
+  resetPrescaler();  // Reset prescaler, utilise par RNG (random number generator RNG.h de lib arduinocryptolibs)
   
   /* Re-enable the peripherals. */
   power_all_enable();
